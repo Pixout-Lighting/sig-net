@@ -19,8 +19,6 @@
 
 ## Sig-Net Protocol Framework
 
-_sĭg nĕt_
-
 Sig-Net is a secure, multicast-based protocol for **DMX512 entertainment lighting control** built on **CoAP** (RFC 7252). It provides authenticated packet delivery via HMAC-SHA256, key derivation via HKDF, and anti-replay protection — all in a lightweight UDP multicast package.
 
 This is a **pure Rust** implementation of the Sig-Net Protocol Framework specification, ported from the original C++ SDK with zero `unsafe` code.
