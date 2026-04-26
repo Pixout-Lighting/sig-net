@@ -1,9 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "sig-net",
-    "signet-ffi",
-    "tid-level-tx",
+    "crates/sig-net",
+    "crates/signet-ffi",
 ]
 
 [workspace.package]

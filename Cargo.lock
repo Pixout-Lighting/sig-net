@@ -534,13 +534,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tid-level-tx"
-version = "0.5.0"
-dependencies = [
- "sig-net",
-]
-
-[[package]]
 name = "toml"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"

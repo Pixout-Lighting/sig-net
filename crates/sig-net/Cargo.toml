@@ -25,15 +25,15 @@ socket2 = { version = "0.5", optional = true }
 
 [[example]]
 name = "core"
-path = "../examples/rust/core.rs"
+path = "../../examples/rust/core.rs"
 required-features = []
 
 [[example]]
 name = "crypto"
-path = "../examples/rust/crypto.rs"
+path = "../../examples/rust/crypto.rs"
 required-features = ["crypto"]
 
 [[example]]
 name = "full"
-path = "../examples/rust/full.rs"
+path = "../../examples/rust/full.rs"
 required-features = ["crypto", "net"]

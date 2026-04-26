@@ -1,7 +1,10 @@
 fn main() {
-    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let include_dir = std::path::Path::new(&crate_dir).parent().unwrap().join("include");
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let workspace_root = std::path::Path::new(&manifest_dir)
+        .parent().unwrap()   // crates/
+        .parent().unwrap();  // workspace root
 
+    let include_dir = workspace_root.join("include");
     std::fs::create_dir_all(&include_dir).unwrap();
 
     let config = cbindgen::Config {
@@ -12,7 +15,7 @@ fn main() {
     };
 
     cbindgen::Builder::new()
-        .with_crate(&crate_dir)
+        .with_crate(&manifest_dir)
         .with_config(config)
         .generate()
         .expect("cbindgen failed")

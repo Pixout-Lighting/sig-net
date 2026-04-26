@@ -24,8 +24,8 @@ This repository contains a pure Rust implementation ported from the original C++
 
 | Crate | Version | Description |
 |-------|---------|-------------|
-| [`sig-net`](sig-net/README.md) | [![crates.io][crates-badge]][crates-url] [![docs.rs][docs-badge]][docs-url] | Core library — types, crypto, CoAP, TLV, parsing, UDP |
-| [`signet-ffi`](signet-ffi/README.md) | — | C-compatible FFI (staticlib + cdylib + cbindgen header) |
+| [`sig-net`](crates/sig-net/README.md) | [![crates.io][crates-badge]][crates-url] [![docs.rs][docs-badge]][docs-url] | Core library — types, crypto, CoAP, TLV, parsing, UDP |
+| [`signet-ffi`](crates/signet-ffi/README.md) | — | C-compatible FFI (staticlib + cdylib + cbindgen header) |
 
 ## Examples
 
