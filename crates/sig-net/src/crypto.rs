@@ -109,8 +109,9 @@ pub fn analyse_passphrase(passphrase: &[u8]) -> Result<PassphraseChecks> {
     let mut checks = PassphraseChecks::default();
     checks.length = passphrase.len();
 
+    // Bug 3 fix: empty passphrase must return error, not Ok
     if passphrase.is_empty() {
-        return Ok(checks);
+        return Err(SigNetError::PassphraseTooShort);
     }
 
     checks.length_ok = checks.length >= PASSPHRASE_MIN_LENGTH && checks.length <= PASSPHRASE_MAX_LENGTH;
@@ -147,24 +148,29 @@ pub fn analyse_passphrase(passphrase: &[u8]) -> Result<PassphraseChecks> {
         }
     }
 
+    // Bug 2 fix: check both ascending and descending sequences, matching C++
     for i in 3..passphrase.len() {
-        if passphrase[i] == passphrase[i - 1].wrapping_add(1)
+        let asc = passphrase[i] == passphrase[i - 1].wrapping_add(1)
             && passphrase[i - 1] == passphrase[i - 2].wrapping_add(1)
-            && passphrase[i - 2] == passphrase[i - 3].wrapping_add(1)
-        {
+            && passphrase[i - 2] == passphrase[i - 3].wrapping_add(1);
+        let desc = passphrase[i] == passphrase[i - 1].wrapping_sub(1)
+            && passphrase[i - 1] == passphrase[i - 2].wrapping_sub(1)
+            && passphrase[i - 2] == passphrase[i - 3].wrapping_sub(1);
+        if asc || desc {
             checks.no_sequential = false;
             break;
         }
     }
 
-    if !checks.classes_ok {
-        return Err(SigNetError::PassphraseInsufficientClasses);
-    }
+    // Bug 4 fix: error priority matches C++: identical → sequential → classes
     if !checks.no_identical {
         return Err(SigNetError::PassphraseConsecutiveIdentical);
     }
     if !checks.no_sequential {
         return Err(SigNetError::PassphraseConsecutiveSequential);
+    }
+    if !checks.classes_ok {
+        return Err(SigNetError::PassphraseInsufficientClasses);
     }
 
     Ok(checks)

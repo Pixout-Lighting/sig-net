@@ -239,3 +239,104 @@ fn constant_time_hmac_reject() {
     );
     assert!(result.is_err());
 }
+
+// ---------------------------------------------------------------------------
+// Regression tests for fixed bugs
+// ---------------------------------------------------------------------------
+
+#[test]
+fn passphrase_empty_returns_error() {
+    // Bug 3: empty passphrase must return PassphraseTooShort, not Ok
+    let result = sig_net::crypto::validate_passphrase(b"");
+    assert!(matches!(result, Err(SigNetError::PassphraseTooShort)));
+}
+
+#[test]
+fn passphrase_descending_sequence_rejected() {
+    // Bug 2: "dcba" (descending) must be rejected like "abcd" (ascending)
+    // Use a passphrase that is valid in all other ways but contains "dcba"
+    let result = sig_net::crypto::validate_passphrase(b"Adcba$5678");
+    assert!(
+        matches!(result, Err(SigNetError::PassphraseConsecutiveSequential)),
+        "expected ConsecutiveSequential for descending run, got {:?}", result
+    );
+}
+
+#[test]
+fn passphrase_ascending_sequence_rejected() {
+    // Sanity check: ascending "abcd" also rejected
+    let result = sig_net::crypto::validate_passphrase(b"Aabcd$5678");
+    assert!(
+        matches!(result, Err(SigNetError::PassphraseConsecutiveSequential)),
+        "expected ConsecutiveSequential for ascending run, got {:?}", result
+    );
+}
+
+#[test]
+fn passphrase_error_priority_identical_before_classes() {
+    // Bug 4: triple-identical should win over insufficient classes
+    // "aaabbbccc" — has identical run AND only 1 class
+    let result = sig_net::crypto::validate_passphrase(b"aaabbbcccc");
+    assert!(
+        matches!(result, Err(SigNetError::PassphraseConsecutiveIdentical)),
+        "expected ConsecutiveIdentical (not InsufficientClasses), got {:?}", result
+    );
+}
+
+#[test]
+fn dmx_packet_hmac_roundtrip() {
+    // Bug 1: HMAC in build_dmx_packet must cover the TLV payload, not raw DMX data.
+    // Verify by building a packet and then verifying its HMAC with verify_packet_hmac.
+    let mut k0 = [0u8; K0_KEY_LENGTH];
+    sig_net::crypto::derive_k0_from_passphrase(b"Ge2p$E$4*A", &mut k0).unwrap();
+    let mut sender_key = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_sender_key(&k0, &mut sender_key).unwrap();
+
+    let tuid = [0x53u8, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let dmx = vec![0u8; 64];
+    let universe: u16 = 1;
+
+    let mut buf = PacketBuffer::new();
+    sig_net::send::build_dmx_packet(
+        &mut buf, universe, &dmx, 64, &tuid, 0, 0, 1, 1, &sender_key, 1,
+    ).unwrap();
+
+    // Parse the packet and verify HMAC
+    let pkt = buf.as_slice().to_vec();
+    let pkt_len = pkt.len() as u16;
+    let mut reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    let header = reader.parse_coap_header().unwrap();
+    reader.skip_token(header.token_length).unwrap();
+
+    let mut uri_buf = [0u8; 96];
+    let uri_len = reader.extract_uri_string(&mut uri_buf).unwrap();
+    let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
+
+    let mut opt_reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    opt_reader.parse_coap_header().unwrap();
+    opt_reader.skip_token(header.token_length).unwrap();
+    let options = opt_reader.parse_signet_options().unwrap();
+
+    // Payload is the remaining bytes after the 0xFF marker (already consumed by parse_signet_options)
+    let payload = opt_reader.current_ptr().to_vec();
+
+    let verify = sig_net::crypto::verify_packet_hmac(uri, &options, &payload, &sender_key);
+    assert!(verify.is_ok(), "HMAC roundtrip failed: {:?}", verify);
+}
+
+#[test]
+fn dmx_packet_slot_count_validated() {
+    // Bug 6: slot_count == 0 or > 512 must be rejected
+    let tuid = [0u8; TUID_LENGTH];
+    let dmx = vec![0u8; 512];
+    let key = vec![0u8; 32];
+    let mut buf = PacketBuffer::new();
+
+    assert!(sig_net::send::build_dmx_packet(
+        &mut buf, 1, &dmx, 0, &tuid, 0, 0, 1, 1, &key, 1
+    ).is_err(), "slot_count=0 should fail");
+
+    assert!(sig_net::send::build_dmx_packet(
+        &mut buf, 1, &dmx, 513, &tuid, 0, 0, 1, 1, &key, 1
+    ).is_err(), "slot_count=513 should fail");
+}

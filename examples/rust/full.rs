@@ -36,7 +36,8 @@ fn main() {
     send::build_dmx_packet(
         &mut buf,           // packet buffer
         1,                  // universe
-        &dmx_data,          // DMX slot values (64 slots)
+        &dmx_data,          // DMX slot values
+        64,                 // slot count
         &tuid.0,            // transmitter TUID
         0,                  // endpoint
         0x0000,             // manufacturer code (standard)

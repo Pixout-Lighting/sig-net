@@ -45,6 +45,7 @@ pub fn build_dmx_packet(
     buffer: &mut PacketBuffer,
     universe: u16,
     dmx_data: &[u8],
+    slot_count: u16,
     tuid: &[u8; TUID_LENGTH],
     endpoint: u16,
     mfg_code: u16,
@@ -53,22 +54,31 @@ pub fn build_dmx_packet(
     sender_key: &[u8],
     message_id: u16,
 ) -> Result<()> {
-    buffer.reset();
+    if slot_count == 0 || slot_count > MAX_DMX_SLOTS || dmx_data.len() < slot_count as usize {
+        return Err(SigNetError::InvalidArgument);
+    }
+    let slots = &dmx_data[..slot_count as usize];
 
+    buffer.reset();
     crate::coap::build_coap_header(buffer, message_id)?;
     crate::coap::build_uri_path_options(buffer, universe)?;
 
     let options = write_options_2076_2204(buffer, tuid, endpoint, mfg_code, session_id, seq_num)?;
 
+    // Bug 1 fix: build TLV payload first so HMAC covers the full TLV (type + length + data),
+    // matching the C++ FinalizePacketWithHMACAndPayload behaviour.
+    let mut payload_buf = PacketBuffer::new();
+    crate::tlv::encode_tid_level(&mut payload_buf, slots)?;
+
     let mut uri_buf = [0u8; URI_STRING_MIN_BUFFER as usize];
     let uri_len = crate::coap::build_uri_string(universe, &mut uri_buf)?;
     let uri_string = core::str::from_utf8(&uri_buf[..uri_len]).unwrap_or("");
 
-    let hmac = compute_hmac_opt(uri_string, &options, dmx_data, sender_key)?;
+    let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), sender_key)?;
     crate::coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
     buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    crate::tlv::encode_tid_level(buffer, dmx_data)
+    buffer.write_bytes(payload_buf.as_slice())
 }
 
 pub fn build_announce_packet(

@@ -1,6 +1,6 @@
 [package]
 name = "sig-net"
-version = "0.5.0"
+version.workspace = true
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/anomalyco/signet"

@@ -136,21 +136,20 @@ impl<'a> PacketReader<'a> {
     }
 
     /// Parse all 6 SigNet options (2076–2236) from the current position.
-    /// The HMAC option (2236) may appear either before or after the payload marker.
+    /// Stops at the payload marker (0xFF) — all options including HMAC must precede it.
+    /// Leaves the reader positioned at the first byte of the payload.
     pub fn parse_signet_options(&mut self) -> Result<SigNetOptions> {
         let mut options = SigNetOptions::default();
         let mut prev_option: u16 = 0;
         let mut seen_hmac = false;
 
-        // Phase 1: parse options before payload marker
         loop {
             if !self.can_read(1) {
                 break;
             }
             let peek = self.peek_byte()?;
             if peek == COAP_PAYLOAD_MARKER {
-                // Skip payload marker — HMAC may follow after the payload
-                self.read_byte()?;
+                self.read_byte()?; // consume marker; reader now sits at payload start
                 break;
             }
 
@@ -241,16 +240,9 @@ impl<'a> PacketReader<'a> {
             prev_option = opt_num;
 
             if opt_num == COAP_OPTION_URI_PATH {
-                if pos > 0 {
-                    if pos < uri_string.len() {
-                        uri_string[pos] = b'/';
-                        pos += 1;
-                    }
-                } else {
-                    if pos < uri_string.len() {
-                        uri_string[pos] = b'/';
-                        pos += 1;
-                    }
+                if pos < uri_string.len() {
+                    uri_string[pos] = b'/';
+                    pos += 1;
                 }
                 if pos + value.len() <= uri_string.len() {
                     uri_string[pos..pos + value.len()].copy_from_slice(value);
