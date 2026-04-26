@@ -1,0 +1,19 @@
+[package]
+name = "signet-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "C-compatible FFI bindings for the Sig-Net SDK"
+keywords = ["ffi", "cbindgen", "signet", "dmx512"]
+categories = ["api-bindings"]
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+sig-net = { version = "0.5", path = "../sig-net" }
+
+[build-dependencies]
+cbindgen = "0.27"

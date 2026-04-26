@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "sig-net",
+    "signet-ffi",
+    "tid-level-tx",
+]
+
+[workspace.package]
+version = "0.5.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/anomalyco/signet"
+authors = ["Wayne Howell <wayne@singularity.uk>"]

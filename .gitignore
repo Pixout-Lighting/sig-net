@@ -1,0 +1,14 @@
+/target
+/include
+/legacy
+examples/signet-ffi/ffi-demo
+**/*.rs.bk
+*.swp
+*.swo
+.DS_Store
+*.o
+*.a
+*.dylib
+*.so
+*.d
+*.dylib.d

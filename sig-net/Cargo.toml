@@ -1,0 +1,39 @@
+[package]
+name = "sig-net"
+version = "0.5.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/anomalyco/signet"
+authors = ["Wayne Howell <wayne@singularity.uk>"]
+description = "Sig-Net secure CoAP-based DMX512 lighting control protocol library"
+keywords = ["dmx512", "coap", "lighting", "signet", "protocol"]
+categories = ["network-programming", "encoding", "cryptography"]
+
+[features]
+default = ["crypto", "net"]
+crypto = ["dep:hmac", "dep:sha2", "dep:hkdf", "dep:pbkdf2", "dep:getrandom", "dep:subtle"]
+net = ["dep:socket2", "crypto"]
+
+[dependencies]
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+hkdf = { version = "0.12", optional = true }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"], optional = true }
+getrandom = { version = "0.2", optional = true }
+subtle = { version = "2.6", optional = true }
+socket2 = { version = "0.5", optional = true }
+
+[[example]]
+name = "core"
+path = "../examples/rust/core.rs"
+required-features = []
+
+[[example]]
+name = "crypto"
+path = "../examples/rust/crypto.rs"
+required-features = ["crypto"]
+
+[[example]]
+name = "full"
+path = "../examples/rust/full.rs"
+required-features = ["crypto", "net"]
