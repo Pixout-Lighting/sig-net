@@ -1,4 +1,5 @@
 use crate::*;
+use crate::util::hex_char;
 
 pub struct PacketReader<'a> {
     buffer: &'a [u8],
@@ -274,11 +275,19 @@ pub fn parse_hex_bytes(text: &[u8], out_bytes: &mut [u8], byte_count: u16) -> Re
     } else {
         text
     };
-    let text: Vec<u8> = text
-        .iter()
-        .filter(|c| !c.is_ascii_whitespace())
-        .copied()
-        .collect();
+    // stack buffer: max byte_count is 32 (K0) → 64 hex chars; 70 gives headroom
+    let mut stack_buf = [0u8; 70];
+    let mut stack_len = 0usize;
+    for &b in text {
+        if !b.is_ascii_whitespace() {
+            if stack_len >= stack_buf.len() {
+                return Err(SigNetError::InvalidArgument);
+            }
+            stack_buf[stack_len] = b;
+            stack_len += 1;
+        }
+    }
+    let text = &stack_buf[..stack_len];
     let expected = byte_count as usize * 2;
     if text.len() != expected {
         return Err(SigNetError::InvalidArgument);
@@ -287,13 +296,4 @@ pub fn parse_hex_bytes(text: &[u8], out_bytes: &mut [u8], byte_count: u16) -> Re
         out_bytes[i] = (hex_char(text[i * 2])? << 4) | hex_char(text[i * 2 + 1])?;
     }
     Ok(())
-}
-
-fn hex_char(c: u8) -> Result<u8> {
-    match c {
-        b'0'..=b'9' => Ok(c - b'0'),
-        b'A'..=b'F' => Ok(c - b'A' + 10),
-        b'a'..=b'f' => Ok(c - b'a' + 10),
-        _ => Err(SigNetError::InvalidArgument),
-    }
 }

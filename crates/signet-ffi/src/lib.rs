@@ -104,6 +104,9 @@ pub unsafe extern "C" fn signet_derive_sender_key(
     k0: *const u8,
     sender_key: *mut u8,
 ) -> signet_result {
+    if k0.is_null() || sender_key.is_null() {
+        return SIGNET_ERROR_INVALID_ARG;
+    }
     let k0_arr = *(k0 as *const [u8; K0_KEY_LENGTH]);
     let out = std::slice::from_raw_parts_mut(sender_key, DERIVED_KEY_LENGTH);
     let mut arr = [0u8; DERIVED_KEY_LENGTH];
@@ -118,6 +121,9 @@ pub unsafe extern "C" fn signet_derive_citizen_key(
     k0: *const u8,
     citizen_key: *mut u8,
 ) -> signet_result {
+    if k0.is_null() || citizen_key.is_null() {
+        return SIGNET_ERROR_INVALID_ARG;
+    }
     let k0_arr = *(k0 as *const [u8; K0_KEY_LENGTH]);
     let out = std::slice::from_raw_parts_mut(citizen_key, DERIVED_KEY_LENGTH);
     let mut arr = [0u8; DERIVED_KEY_LENGTH];
@@ -132,6 +138,9 @@ pub unsafe extern "C" fn signet_derive_manager_global_key(
     k0: *const u8,
     manager_global_key: *mut u8,
 ) -> signet_result {
+    if k0.is_null() || manager_global_key.is_null() {
+        return SIGNET_ERROR_INVALID_ARG;
+    }
     let k0_arr = *(k0 as *const [u8; K0_KEY_LENGTH]);
     let out = std::slice::from_raw_parts_mut(manager_global_key, DERIVED_KEY_LENGTH);
     let mut arr = [0u8; DERIVED_KEY_LENGTH];
@@ -147,6 +156,9 @@ pub unsafe extern "C" fn signet_derive_manager_local_key(
     tuid: *const u8,
     manager_local_key: *mut u8,
 ) -> signet_result {
+    if k0.is_null() || tuid.is_null() || manager_local_key.is_null() {
+        return SIGNET_ERROR_INVALID_ARG;
+    }
     let k0_arr = *(k0 as *const [u8; K0_KEY_LENGTH]);
     let tuid_arr = *(tuid as *const [u8; TUID_LENGTH]);
     let out = std::slice::from_raw_parts_mut(manager_local_key, DERIVED_KEY_LENGTH);
@@ -209,6 +221,9 @@ pub unsafe extern "C" fn signet_tuid_to_hex(
     tuid: *const u8,
     hex_output: *mut c_char,
 ) -> signet_result {
+    if tuid.is_null() || hex_output.is_null() {
+        return SIGNET_ERROR_INVALID_ARG;
+    }
     let tuid_arr = *(tuid as *const [u8; TUID_LENGTH]);
     let out = std::slice::from_raw_parts_mut(hex_output as *mut u8, TUID_HEX_LENGTH + 1);
     let hex = TUID(tuid_arr).to_hex();
@@ -235,6 +250,9 @@ pub unsafe extern "C" fn signet_generate_ephemeral_tuid(
     mfg_code: u16,
     tuid_output: *mut u8,
 ) -> signet_result {
+    if tuid_output.is_null() {
+        return SIGNET_ERROR_INVALID_ARG;
+    }
     let out = std::slice::from_raw_parts_mut(tuid_output, TUID_LENGTH);
     match sig_net::crypto::generate_ephemeral_tuid(mfg_code) {
         Ok(arr) => { out.copy_from_slice(&arr); SIGNET_SUCCESS }

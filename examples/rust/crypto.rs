@@ -133,8 +133,8 @@ fn main() {
     opts.session_id = 1;
     opts.seq_num = 1;
 
-    crypto::calculate_and_encode_hmac(
-        "/sig-net/v1/local/level/1", &mut opts, b"payload data", &sender_key,
+    opts.hmac = crypto::compute_packet_hmac(
+        "/sig-net/v1/local/level/1", &opts, b"payload data", &sender_key,
     ).unwrap();
     println!("HMAC calculated and encoded");
 

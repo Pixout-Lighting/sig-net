@@ -36,7 +36,9 @@ pub fn encode_coap_option(
     prev_option: u16,
     option_value: &[u8],
 ) -> Result<()> {
-    let delta = option_number - prev_option;
+    let delta = option_number
+        .checked_sub(prev_option)
+        .ok_or(SigNetError::InvalidArgument)?;
     encode_option_nibble(buffer, delta, option_value.len() as u16)?;
     buffer.write_bytes(option_value)
 }
@@ -94,7 +96,8 @@ pub fn build_node_uri_string(
     uri_output: &mut [u8],
 ) -> Result<usize> {
     let hex = TUID(*tuid).to_hex();
-    let hex_str = core::str::from_utf8(&hex).unwrap_or("000000000000");
+    let hex_str = core::str::from_utf8(&hex)
+        .map_err(|_| SigNetError::Encode)?;
     let s = format!(
         "/{}/{}/{}/{}/{}/{}",
         SIGNET_URI_PREFIX,

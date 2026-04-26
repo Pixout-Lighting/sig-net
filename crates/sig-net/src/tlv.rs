@@ -44,7 +44,7 @@ pub fn encode_tid_poll(
     query_level: u8,
 ) -> Result<()> {
     buffer.write_u16(TID_POLL)?;
-    buffer.write_u16(25)?;
+    buffer.write_u16(TID_POLL_VALUE_LEN)?;
     buffer.write_bytes(manager_tuid)?;
     buffer.write_u16(mfg_code)?;
     buffer.write_u16(product_variant_id)?;
@@ -62,7 +62,7 @@ pub fn encode_tid_poll_reply(
     change_count: u16,
 ) -> Result<()> {
     buffer.write_u16(TID_POLL_REPLY)?;
-    buffer.write_u16(12)?;
+    buffer.write_u16(TID_POLL_REPLY_VALUE_LEN)?;
     buffer.write_bytes(tuid)?;
     buffer.write_u16(mfg_code)?;
     buffer.write_u16(product_variant_id)?;
@@ -93,10 +93,6 @@ pub fn encode_tid_rt_role_capability(buffer: &mut PacketBuffer, role_capability_
     buffer.write_byte(role_capability_bits)
 }
 
-pub fn build_dmx_level_payload(buffer: &mut PacketBuffer, dmx_data: &[u8]) -> Result<()> {
-    encode_tid_level(buffer, dmx_data)
-}
-
 pub fn build_startup_announce_payload(
     buffer: &mut PacketBuffer,
     tuid: &[u8; TUID_LENGTH],
@@ -112,26 +108,4 @@ pub fn build_startup_announce_payload(
     encode_tid_rt_firmware_version(buffer, firmware_version_id, firmware_version_string)?;
     encode_tid_rt_protocol_version(buffer, protocol_version)?;
     encode_tid_rt_role_capability(buffer, role_capability_bits)
-}
-
-pub fn build_poll_payload(
-    buffer: &mut PacketBuffer,
-    manager_tuid: &[u8; TUID_LENGTH],
-    mfg_code: u16,
-    product_variant_id: u16,
-    tuid_lo: &[u8; TUID_LENGTH],
-    tuid_hi: &[u8; TUID_LENGTH],
-    target_endpoint: u16,
-    query_level: u8,
-) -> Result<()> {
-    encode_tid_poll(
-        buffer,
-        manager_tuid,
-        mfg_code,
-        product_variant_id,
-        tuid_lo,
-        tuid_hi,
-        target_endpoint,
-        query_level,
-    )
 }

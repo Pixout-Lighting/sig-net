@@ -1,6 +1,7 @@
 use core::fmt;
 
 use crate::*;
+use crate::util::hex_char;
 
 pub type Result<T> = core::result::Result<T, SigNetError>;
 
@@ -44,6 +45,8 @@ impl fmt::Display for SigNetError {
         }
     }
 }
+
+impl std::error::Error for SigNetError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoAPHeader {
@@ -96,7 +99,7 @@ impl<'a> TLVBlock<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SigNetOptions {
     pub security_mode: u8,
     pub sender_id: [u8; SENDER_ID_LENGTH],
@@ -104,19 +107,6 @@ pub struct SigNetOptions {
     pub session_id: u32,
     pub seq_num: u32,
     pub hmac: [u8; HMAC_SHA256_LENGTH],
-}
-
-impl Default for SigNetOptions {
-    fn default() -> Self {
-        SigNetOptions {
-            security_mode: 0,
-            sender_id: [0u8; SENDER_ID_LENGTH],
-            mfg_code: 0,
-            session_id: 0,
-            seq_num: 0,
-            hmac: [0u8; HMAC_SHA256_LENGTH],
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -229,7 +219,7 @@ impl Default for PacketBuffer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReceiverSenderState {
     pub sender_id: [u8; SENDER_ID_LENGTH],
     pub session_id: u32,
@@ -239,20 +229,7 @@ pub struct ReceiverSenderState {
     pub total_packets_accepted: u32,
 }
 
-impl Default for ReceiverSenderState {
-    fn default() -> Self {
-        ReceiverSenderState {
-            sender_id: [0u8; SENDER_ID_LENGTH],
-            session_id: 0,
-            seq_num: 0,
-            last_packet_time_ms: 0,
-            total_packets_received: 0,
-            total_packets_accepted: 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReceiverStatistics {
     pub total_packets: u32,
     pub accepted_packets: u32,
@@ -267,28 +244,10 @@ pub struct ReceiverStatistics {
     pub last_packet_time_ms: u32,
 }
 
-impl Default for ReceiverStatistics {
-    fn default() -> Self {
-        ReceiverStatistics {
-            total_packets: 0,
-            accepted_packets: 0,
-            coap_version_errors: 0,
-            coap_type_errors: 0,
-            coap_code_errors: 0,
-            uri_mismatches: 0,
-            missing_options: 0,
-            hmac_failures: 0,
-            replay_detected: 0,
-            parse_errors: 0,
-            last_packet_time_ms: 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReceivedPacketInfo {
     pub message_id: u16,
-    pub sender_tuid: [u8; 6],
+    pub sender_tuid: [u8; TUID_LENGTH],
     pub endpoint: u16,
     pub mfg_code: u16,
     pub session_id: u32,
@@ -298,24 +257,6 @@ pub struct ReceivedPacketInfo {
     pub session_fresh: bool,
     pub rejection_reason: Option<&'static str>,
     pub timestamp_ms: u32,
-}
-
-impl Default for ReceivedPacketInfo {
-    fn default() -> Self {
-        ReceivedPacketInfo {
-            message_id: 0,
-            sender_tuid: [0u8; 6],
-            endpoint: 0,
-            mfg_code: 0,
-            session_id: 0,
-            seq_num: 0,
-            dmx_slot_count: 0,
-            hmac_valid: false,
-            session_fresh: false,
-            rejection_reason: None,
-            timestamp_ms: 0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -354,15 +295,6 @@ impl TUID {
             arr[i] = (hex_char(hex[i * 2])? << 4) | hex_char(hex[i * 2 + 1])?;
         }
         Ok(TUID(arr))
-    }
-}
-
-fn hex_char(c: u8) -> Result<u8> {
-    match c {
-        b'0'..=b'9' => Ok(c - b'0'),
-        b'A'..=b'F' => Ok(c - b'A' + 10),
-        b'a'..=b'f' => Ok(c - b'a' + 10),
-        _ => Err(SigNetError::InvalidArgument),
     }
 }
 

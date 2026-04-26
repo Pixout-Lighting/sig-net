@@ -188,47 +188,18 @@ pub fn generate_random_passphrase(buf: &mut [u8; 11]) -> Result<()> {
         let mut phrase = [0u8; PASSPHRASE_GENERATED_LENGTH];
         getrandom::getrandom(&mut phrase).map_err(|_| SigNetError::Crypto)?;
 
-        let mut char_sets_used = [false; 4];
-        let mut ok = true;
-
         for i in 0..phrase.len() {
             let idx = phrase[i] as usize;
             let set_idx = idx % 4;
             let set = sets[set_idx];
             phrase[i] = set[idx % set.len()];
-            char_sets_used[set_idx] = true;
         }
 
-        if char_sets_used.iter().filter(|&&b| b).count() < 3 {
-            continue;
+        if analyse_passphrase(&phrase).is_ok() {
+            buf[..PASSPHRASE_GENERATED_LENGTH].copy_from_slice(&phrase);
+            buf[PASSPHRASE_GENERATED_LENGTH] = 0;
+            return Ok(());
         }
-
-        for i in 2..phrase.len() {
-            if phrase[i] == phrase[i - 1] && phrase[i] == phrase[i - 2] {
-                ok = false;
-                break;
-            }
-        }
-        if !ok {
-            continue;
-        }
-
-        for i in 3..phrase.len() {
-            if phrase[i] == phrase[i - 1].wrapping_add(1)
-                && phrase[i - 1] == phrase[i - 2].wrapping_add(1)
-                && phrase[i - 2] == phrase[i - 3].wrapping_add(1)
-            {
-                ok = false;
-                break;
-            }
-        }
-        if !ok {
-            continue;
-        }
-
-        buf[..PASSPHRASE_GENERATED_LENGTH].copy_from_slice(&phrase);
-        buf[PASSPHRASE_GENERATED_LENGTH] = 0;
-        return Ok(());
     }
 
     Err(SigNetError::Crypto)
@@ -272,11 +243,14 @@ pub fn verify_packet_hmac(
     use subtle::ConstantTimeEq;
 
     let input_len = uri_string.len() + 1 + SENDER_ID_LENGTH + 2 + 4 + 4 + payload.len();
-    let mut hmac_input = vec![0u8; input_len];
-    build_hmac_input(uri_string, options, payload, &mut hmac_input)?;
+    if input_len > HMAC_INPUT_MAX {
+        return Err(SigNetError::InvalidArgument);
+    }
+    let mut hmac_input = [0u8; HMAC_INPUT_MAX];
+    build_hmac_input(uri_string, options, payload, &mut hmac_input[..input_len])?;
 
     let mut computed = [0u8; HMAC_SHA256_LENGTH];
-    hmac_sha256(role_key, &hmac_input, &mut computed)?;
+    hmac_sha256(role_key, &hmac_input[..input_len], &mut computed)?;
 
     if computed.ct_eq(&options.hmac).into() {
         Ok(())
@@ -285,14 +259,19 @@ pub fn verify_packet_hmac(
     }
 }
 
-pub fn calculate_and_encode_hmac(
+pub fn compute_packet_hmac(
     uri_string: &str,
-    options: &mut SigNetOptions,
+    options: &SigNetOptions,
     payload: &[u8],
     signing_key: &[u8],
-) -> Result<()> {
+) -> Result<[u8; HMAC_SHA256_LENGTH]> {
     let input_len = uri_string.len() + 1 + SENDER_ID_LENGTH + 2 + 4 + 4 + payload.len();
-    let mut hmac_input = vec![0u8; input_len];
-    build_hmac_input(uri_string, options, payload, &mut hmac_input)?;
-    hmac_sha256(signing_key, &hmac_input, &mut options.hmac)
+    if input_len > HMAC_INPUT_MAX {
+        return Err(SigNetError::InvalidArgument);
+    }
+    let mut hmac_input = [0u8; HMAC_INPUT_MAX];
+    build_hmac_input(uri_string, options, payload, &mut hmac_input[..input_len])?;
+    let mut hmac = [0u8; HMAC_SHA256_LENGTH];
+    hmac_sha256(signing_key, &hmac_input[..input_len], &mut hmac)?;
+    Ok(hmac)
 }

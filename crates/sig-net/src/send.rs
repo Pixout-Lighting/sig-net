@@ -1,4 +1,5 @@
 use crate::*;
+use crate::{coap, crypto, security, tlv};
 
 fn compute_hmac_opt(
     uri_string: &str,
@@ -6,12 +7,7 @@ fn compute_hmac_opt(
     payload: &[u8],
     signing_key: &[u8],
 ) -> Result<[u8; HMAC_SHA256_LENGTH]> {
-    let input_len = uri_string.len() + 1 + SENDER_ID_LENGTH + 2 + 4 + 4 + payload.len();
-    let mut hmac_input = vec![0u8; input_len];
-    crate::crypto::build_hmac_input(uri_string, options, payload, &mut hmac_input)?;
-    let mut hmac = [0u8; HMAC_SHA256_LENGTH];
-    crate::crypto::hmac_sha256(signing_key, &hmac_input, &mut hmac)?;
-    Ok(hmac)
+    crypto::compute_packet_hmac(uri_string, options, payload, signing_key)
 }
 
 fn write_options_2076_2204(
@@ -24,18 +20,18 @@ fn write_options_2076_2204(
 ) -> Result<SigNetOptions> {
     let mut options = SigNetOptions::default();
     options.security_mode = SECURITY_MODE_HMAC_SHA256;
-    crate::security::build_sender_id(tuid, endpoint, &mut options.sender_id);
+    security::build_sender_id(tuid, endpoint, &mut options.sender_id);
     options.mfg_code = mfg_code;
     options.session_id = session_id;
     options.seq_num = seq_num;
-    crate::security::build_signet_options_without_hmac(buffer, &options, COAP_OPTION_URI_PATH)?;
+    security::build_signet_options_without_hmac(buffer, &options, COAP_OPTION_URI_PATH)?;
     Ok(options)
 }
 
 fn write_uri_path_segments(buffer: &mut PacketBuffer, segments: &[&str]) -> Result<()> {
     let mut prev: u16 = 0;
     for &seg in segments {
-        crate::coap::encode_coap_option(buffer, COAP_OPTION_URI_PATH, prev, seg.as_bytes())?;
+        coap::encode_coap_option(buffer, COAP_OPTION_URI_PATH, prev, seg.as_bytes())?;
         prev = COAP_OPTION_URI_PATH;
     }
     Ok(())
@@ -60,22 +56,23 @@ pub fn build_dmx_packet(
     let slots = &dmx_data[..slot_count as usize];
 
     buffer.reset();
-    crate::coap::build_coap_header(buffer, message_id)?;
-    crate::coap::build_uri_path_options(buffer, universe)?;
+    coap::build_coap_header(buffer, message_id)?;
+    coap::build_uri_path_options(buffer, universe)?;
 
     let options = write_options_2076_2204(buffer, tuid, endpoint, mfg_code, session_id, seq_num)?;
 
     // Bug 1 fix: build TLV payload first so HMAC covers the full TLV (type + length + data),
     // matching the C++ FinalizePacketWithHMACAndPayload behaviour.
     let mut payload_buf = PacketBuffer::new();
-    crate::tlv::encode_tid_level(&mut payload_buf, slots)?;
+    tlv::encode_tid_level(&mut payload_buf, slots)?;
 
     let mut uri_buf = [0u8; URI_STRING_MIN_BUFFER as usize];
-    let uri_len = crate::coap::build_uri_string(universe, &mut uri_buf)?;
-    let uri_string = core::str::from_utf8(&uri_buf[..uri_len]).unwrap_or("");
+    let uri_len = coap::build_uri_string(universe, &mut uri_buf)?;
+    let uri_string = core::str::from_utf8(&uri_buf[..uri_len])
+        .map_err(|_| SigNetError::Encode)?;
 
     let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), sender_key)?;
-    crate::coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
+    coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
     buffer.write_byte(COAP_PAYLOAD_MARKER)?;
     buffer.write_bytes(payload_buf.as_slice())
@@ -98,7 +95,7 @@ pub fn build_announce_packet(
 ) -> Result<()> {
     buffer.reset();
 
-    crate::coap::build_coap_header(buffer, message_id)?;
+    coap::build_coap_header(buffer, message_id)?;
 
     let segments = [
         SIGNET_URI_PREFIX, SIGNET_URI_VERSION, SIGNET_URI_SCOPE_DEFAULT, SIGNET_URI_NODE,
@@ -106,28 +103,29 @@ pub fn build_announce_packet(
     write_uri_path_segments(buffer, &segments)?;
 
     let hex = TUID(*tuid).to_hex();
-    let hex_str = core::str::from_utf8(&hex).unwrap_or("000000000000");
+    let hex_str = core::str::from_utf8(&hex).map_err(|_| SigNetError::Encode)?;
     let mut prev: u16 = COAP_OPTION_URI_PATH;
-    crate::coap::encode_coap_option(buffer, COAP_OPTION_URI_PATH, prev, hex_str.as_bytes())?;
+    coap::encode_coap_option(buffer, COAP_OPTION_URI_PATH, prev, hex_str.as_bytes())?;
     prev = COAP_OPTION_URI_PATH;
-    crate::coap::encode_coap_option(buffer, COAP_OPTION_URI_PATH, prev, b"0")?;
+    coap::encode_coap_option(buffer, COAP_OPTION_URI_PATH, prev, b"0")?;
 
     let options = write_options_2076_2204(buffer, tuid, 0, mfg_code, session_id, seq_num)?;
 
     // Build payload in a temp buffer for HMAC calculation
     let mut payload_buf = PacketBuffer::new();
-    crate::tlv::build_startup_announce_payload(
+    tlv::build_startup_announce_payload(
         &mut payload_buf, tuid, mfg_code, product_variant_id,
         firmware_version_id, firmware_version_string,
         protocol_version, role_capability_bits, change_count,
     )?;
 
     let mut uri_buf = [0u8; URI_STRING_MIN_BUFFER as usize];
-    let uri_len = crate::coap::build_node_uri_string(tuid, 0, &mut uri_buf)?;
-    let uri_string = core::str::from_utf8(&uri_buf[..uri_len]).unwrap_or("");
+    let uri_len = coap::build_node_uri_string(tuid, 0, &mut uri_buf)?;
+    let uri_string = core::str::from_utf8(&uri_buf[..uri_len])
+        .map_err(|_| SigNetError::Encode)?;
 
     let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), citizen_key)?;
-    crate::coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
+    coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
     buffer.write_byte(COAP_PAYLOAD_MARKER)?;
     buffer.write_bytes(payload_buf.as_slice())
@@ -149,7 +147,7 @@ pub fn build_poll_packet(
 ) -> Result<()> {
     buffer.reset();
 
-    crate::coap::build_coap_header(buffer, message_id)?;
+    coap::build_coap_header(buffer, message_id)?;
 
     let segments = [
         SIGNET_URI_PREFIX, SIGNET_URI_VERSION, SIGNET_URI_SCOPE_DEFAULT, SIGNET_URI_POLL,
@@ -160,7 +158,7 @@ pub fn build_poll_packet(
 
     // Build payload in temp buffer
     let mut payload_buf = PacketBuffer::new();
-    crate::tlv::build_poll_payload(
+    tlv::encode_tid_poll(
         &mut payload_buf, manager_tuid, mfg_code, product_variant_id,
         tuid_lo, tuid_hi, target_endpoint, query_level,
     )?;
@@ -171,7 +169,7 @@ pub fn build_poll_packet(
     );
 
     let hmac = compute_hmac_opt(&poll_uri, &options, payload_buf.as_slice(), manager_global_key)?;
-    crate::coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
+    coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
     buffer.write_byte(COAP_PAYLOAD_MARKER)?;
     buffer.write_bytes(payload_buf.as_slice())

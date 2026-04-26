@@ -1,5 +1,6 @@
 mod constants;
 mod types;
+mod util;
 
 #[cfg(feature = "crypto")]
 pub mod crypto;

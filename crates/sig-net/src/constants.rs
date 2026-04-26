@@ -27,6 +27,10 @@ pub const SECURITY_MODE_UNPROVISIONED: u8 = 0xFF;
 
 pub const TID_POLL: u16 = 0x0001;
 pub const TID_POLL_REPLY: u16 = 0x0002;
+/// TID_POLL value length: 3×TUID(6) + mfg_code(2) + variant(2) + endpoint(2) + query(1) = 25
+pub const TID_POLL_VALUE_LEN: u16 = 25;
+/// TID_POLL_REPLY value length: TUID(6) + mfg_code(2) + variant(2) + change_count(2) = 12
+pub const TID_POLL_REPLY_VALUE_LEN: u16 = 12;
 pub const TID_LEVEL: u16 = 0x0101;
 pub const TID_PRIORITY: u16 = 0x0102;
 pub const TID_SYNC: u16 = 0x0201;
@@ -107,6 +111,8 @@ pub const TUID_LENGTH: usize = 6;
 pub const TUID_HEX_LENGTH: usize = 12;
 pub const SENDER_ID_LENGTH: usize = 8;
 pub const HKDF_INFO_INPUT_MAX: usize = 63;
+/// Maximum HMAC input size: URI(96) + options(19) + MAX_UDP_PAYLOAD(1400) = 1515
+pub const HMAC_INPUT_MAX: usize = 1600;
 
 pub const SIGNET_URI_PREFIX: &str = "sig-net";
 pub const SIGNET_URI_VERSION: &str = "v1";

@@ -171,6 +171,21 @@ examples/
 └── signet-ffi/        ← C++ FFI demo (ffi-demo.cpp + Makefile)
 ```
 
+## Differences from the C++ SDK
+
+| Area | C++ SDK | sig-net (Rust) |
+|------|---------|----------------|
+| **Platform** | Windows-only (BCrypt, Winsock2) | Cross-platform (Linux, macOS, Windows) |
+| **Random generation** | `BCryptGenRandom` | `getrandom` crate |
+| **Unsafe code** | N/A (C++) | Zero `unsafe` in the library; FFI layer only in `signet-ffi` |
+| **Error type** | `int32_t` return codes | `Result<T, SigNetError>` |
+| **Passphrase generation strategy** | Single-pass construction; calls `ValidatePassphrase` at the end; falls back to hardcoded `"Abc123!@#$"` if validation fails | Retry loop up to 100 random attempts; calls `analyse_passphrase` after each attempt; returns `Err(Crypto)` if all attempts fail |
+| **Passphrase validation — sequential check** | `HasSequentialRun` checks both ascending (`abcd`) and descending (`dcba`) runs of 4+ characters | Same — `analyse_passphrase` checks both directions, matching C++ exactly |
+| **HMAC input** | Covers full TLV payload: `[TID][Length][Value]` | Same — HMAC covers the complete TLV-encoded payload, not the raw DMX bytes |
+| **Sequence wrap-around** | `0xFFFFFFFF` → `1` (skips `0`, which is reserved for "no sequence") | Same — `increment_sequence` mirrors this behaviour |
+
+> **Note on passphrase generation.** The C++ fallback to `"Abc123!@#$"` means that under adversarial entropy conditions every caller receives the same passphrase. The Rust implementation avoids this by retrying with fresh random bytes instead of falling back to a constant.
+
 ## Safety
 
 **Zero `unsafe` blocks** in the entire `sig-net` library:

@@ -1,10 +1,9 @@
 use crate::*;
+use crate::coap;
 
 pub fn build_sender_id(tuid: &[u8; TUID_LENGTH], endpoint: u16, sender_id: &mut [u8; SENDER_ID_LENGTH]) {
     sender_id[..TUID_LENGTH].copy_from_slice(tuid);
-    let ep_bytes = endpoint.to_be_bytes();
-    sender_id[TUID_LENGTH] = ep_bytes[0];
-    sender_id[TUID_LENGTH + 1] = ep_bytes[1];
+    sender_id[TUID_LENGTH..SENDER_ID_LENGTH].copy_from_slice(&endpoint.to_be_bytes());
 }
 
 pub fn build_signet_options_without_hmac(
@@ -24,22 +23,14 @@ pub fn build_signet_options_without_hmac(
 }
 
 fn encode_opt(buffer: &mut PacketBuffer, opt_num: u16, prev: u16, value: &[u8]) -> Result<u16> {
-    crate::coap::encode_coap_option(buffer, opt_num, prev, value)?;
+    coap::encode_coap_option(buffer, opt_num, prev, value)?;
     Ok(opt_num)
 }
 
-pub fn calculate_and_encode_hmac(
+pub fn encode_hmac_option(
     buffer: &mut PacketBuffer,
-    uri_string: &str,
-    options: &mut SigNetOptions,
-    payload: &[u8],
-    signing_key: &[u8],
+    hmac: &[u8; HMAC_SHA256_LENGTH],
     prev_option: u16,
 ) -> Result<()> {
-    let input_len = uri_string.len() + 1 + SENDER_ID_LENGTH + 2 + 4 + 4 + payload.len();
-    let mut hmac_input = vec![0u8; input_len];
-    crate::crypto::build_hmac_input(uri_string, options, payload, &mut hmac_input)?;
-    crate::crypto::hmac_sha256(signing_key, &hmac_input, &mut options.hmac)?;
-
-    crate::coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, prev_option, &options.hmac)
+    coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, prev_option, hmac)
 }

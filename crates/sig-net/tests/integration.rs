@@ -210,7 +210,7 @@ fn make_test_options(key: &[u8], uri: &str, payload: &[u8]) -> SigNetOptions {
     options.mfg_code = 0x1234;
     options.session_id = 1;
     options.seq_num = 1;
-    sig_net::crypto::calculate_and_encode_hmac(uri, &mut options, payload, key).unwrap();
+    options.hmac = sig_net::crypto::compute_packet_hmac(uri, &options, payload, key).unwrap();
     options
 }
 
@@ -339,4 +339,126 @@ fn dmx_packet_slot_count_validated() {
     assert!(sig_net::send::build_dmx_packet(
         &mut buf, 1, &dmx, 513, &tuid, 0, 0, 1, 1, &key, 1
     ).is_err(), "slot_count=513 should fail");
+}
+
+// ---------------------------------------------------------------------------
+// Tests for coap module (I-15)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn coap_option_out_of_order_rejected() {
+    // I-03: option_number < prev_option should return error
+    let mut buf = PacketBuffer::new();
+    // prev_option=20 > option_number=10 → should fail
+    let result = sig_net::coap::encode_coap_option(&mut buf, 10, 20, b"x");
+    assert!(result.is_err(), "out-of-order option should be rejected");
+}
+
+#[test]
+fn coap_uri_path_options_level() {
+    // Build CoAP header + URI path options for universe 517
+    let mut buf = PacketBuffer::new();
+    sig_net::coap::build_coap_header(&mut buf, 42).unwrap();
+    sig_net::coap::build_uri_path_options(&mut buf, 517).unwrap();
+    
+    // Parse and verify the URI
+    let mut reader = sig_net::parse::PacketReader::new(buf.as_slice(), buf.len());
+    let header = reader.parse_coap_header().unwrap();
+    reader.skip_token(header.token_length).unwrap();
+    let mut uri_buf = [0u8; 96];
+    let uri_len = reader.extract_uri_string(&mut uri_buf).unwrap();
+    let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
+    assert_eq!(uri, "/sig-net/v1/local/level/517");
+}
+
+// ---------------------------------------------------------------------------
+// Tests for tlv module (I-15)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn tlv_level_empty_rejected() {
+    let mut buf = PacketBuffer::new();
+    assert!(sig_net::tlv::encode_tid_level(&mut buf, &[]).is_err(),
+        "empty DMX data should be rejected");
+}
+
+#[test]
+fn tlv_level_too_long_rejected() {
+    let mut buf = PacketBuffer::new();
+    let too_long = vec![0u8; 513];
+    assert!(sig_net::tlv::encode_tid_level(&mut buf, &too_long).is_err(),
+        "DMX data > 512 slots should be rejected");
+}
+
+#[test]
+fn tlv_level_max_length_accepted() {
+    let mut buf = PacketBuffer::new();
+    let max_data = vec![0u8; 512];
+    assert!(sig_net::tlv::encode_tid_level(&mut buf, &max_data).is_ok(),
+        "DMX data = 512 slots should be accepted");
+}
+
+// ---------------------------------------------------------------------------
+// Tests for security module (I-15)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn sender_id_encodes_tuid_and_endpoint() {
+    let tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let mut sender_id = [0u8; SENDER_ID_LENGTH];
+    sig_net::security::build_sender_id(&tuid, 0x0002, &mut sender_id);
+    assert_eq!(&sender_id[..6], &tuid);
+    assert_eq!(&sender_id[6..], &[0x00, 0x02]);
+}
+
+// ---------------------------------------------------------------------------
+// Test for TID_POLL_VALUE_LEN constant (I-16)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn tid_poll_value_len_constant_matches_actual() {
+    let mut buf = PacketBuffer::new();
+    let start = buf.len();
+    sig_net::tlv::encode_tid_poll(
+        &mut buf,
+        &[0u8; TUID_LENGTH],
+        0x1234,
+        0x0001,
+        &[0u8; TUID_LENGTH],
+        &[0xFFu8; TUID_LENGTH],
+        0xFFFF,
+        QUERY_FULL,
+    ).unwrap();
+    // 4 bytes TID+LEN header + value
+    let written = buf.len() - start;
+    assert_eq!(written, 4 + TID_POLL_VALUE_LEN,
+        "TID_POLL_VALUE_LEN constant should match actual bytes written");
+}
+
+#[test]
+fn tid_poll_reply_value_len_constant_matches_actual() {
+    let mut buf = PacketBuffer::new();
+    let start = buf.len();
+    sig_net::tlv::encode_tid_poll_reply(
+        &mut buf,
+        &[0u8; TUID_LENGTH],
+        0x1234,
+        0x0001,
+        0xABCD,
+    ).unwrap();
+    // 4 bytes TID+LEN header + value
+    let written = buf.len() - start;
+    assert_eq!(written, 4 + TID_POLL_REPLY_VALUE_LEN,
+        "TID_POLL_REPLY_VALUE_LEN constant should match actual bytes written");
+}
+
+#[test]
+fn generated_passphrase_passes_validation() {
+    let mut buf = [0u8; 11];
+    sig_net::crypto::generate_random_passphrase(&mut buf).unwrap();
+    let len = buf.iter().position(|&b| b == 0).unwrap_or(10);
+    assert!(
+        sig_net::crypto::validate_passphrase(&buf[..len]).is_ok(),
+        "generated passphrase failed validation: {:?}", &buf[..len]
+    );
 }
