@@ -41,6 +41,7 @@ fn map_error(e: SigNetError) -> i32 {
         SigNetError::PassphraseInsufficientClasses   => SIGNET_ERROR_PASSPHRASE_INSUFFICIENT_CLASSES,
         SigNetError::PassphraseConsecutiveIdentical  => SIGNET_ERROR_PASSPHRASE_CONSECUTIVE_IDENTICAL,
         SigNetError::PassphraseConsecutiveSequential => SIGNET_ERROR_PASSPHRASE_CONSECUTIVE_SEQUENTIAL,
+        SigNetError::SessionIdOverflow               => SIGNET_ERROR_INVALID_ARG,
     }
 }
 
@@ -226,7 +227,7 @@ pub unsafe extern "C" fn signet_tuid_to_hex(
     }
     let tuid_arr = *(tuid as *const [u8; TUID_LENGTH]);
     let out = std::slice::from_raw_parts_mut(hex_output as *mut u8, TUID_HEX_LENGTH + 1);
-    let hex = TUID(tuid_arr).to_hex();
+    let hex = TUID(tuid_arr).to_hex_upper();
     out[..TUID_HEX_LENGTH].copy_from_slice(&hex);
     out[TUID_HEX_LENGTH] = 0;
     SIGNET_SUCCESS
@@ -330,7 +331,7 @@ pub unsafe extern "C" fn signet_build_dmx_packet(
     let mut packet = PacketBuffer::new();
     match sig_net::send::build_dmx_packet(
         &mut packet, universe, data, slot_count, &tuid_arr,
-        endpoint, mfg_code, session_id, seq_num, key, message_id,
+        endpoint, mfg_code, session_id, seq_num, key, message_id, "local",
     ) {
         Ok(()) => {
             let pkt = packet.as_slice();
@@ -351,12 +352,12 @@ pub unsafe extern "C" fn signet_build_announce_packet(
     buf_size: u32,
     out_len: *mut u32,
     tuid: *const u8,
-    mfg_code: u16,
-    product_variant_id: u16,
-    firmware_version_id: u16,
+    soem_code: u32,
+    firmware_version_id: u32,
     firmware_version_string: *const c_char,
     protocol_version: u8,
     role_capability_bits: u8,
+    endpoint_count: u16,
     change_count: u16,
     session_id: u32,
     seq_num: u32,
@@ -378,9 +379,9 @@ pub unsafe extern "C" fn signet_build_announce_packet(
 
     let mut packet = PacketBuffer::new();
     match sig_net::send::build_announce_packet(
-        &mut packet, &tuid_arr, mfg_code, product_variant_id,
+        &mut packet, &tuid_arr, soem_code,
         firmware_version_id, fwstr, protocol_version, role_capability_bits,
-        change_count, session_id, seq_num, key, message_id,
+        endpoint_count, change_count, session_id, seq_num, key, message_id, "local",
     ) {
         Ok(()) => {
             let pkt = packet.as_slice();
@@ -401,8 +402,7 @@ pub unsafe extern "C" fn signet_build_poll_packet(
     buf_size: u32,
     out_len: *mut u32,
     manager_tuid: *const u8,
-    mfg_code: u16,
-    product_variant_id: u16,
+    soem_code: u32,
     tuid_lo: *const u8,
     tuid_hi: *const u8,
     target_endpoint: u16,
@@ -425,9 +425,9 @@ pub unsafe extern "C" fn signet_build_poll_packet(
 
     let mut packet = PacketBuffer::new();
     match sig_net::send::build_poll_packet(
-        &mut packet, &mgr_tuid, mfg_code, product_variant_id,
+        &mut packet, &mgr_tuid, soem_code,
         &lo, &hi, target_endpoint, query_level,
-        session_id, seq_num, key, message_id,
+        session_id, seq_num, key, message_id, "local",
     ) {
         Ok(()) => {
             let pkt = packet.as_slice();
