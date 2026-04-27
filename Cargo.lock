@@ -468,7 +468,7 @@ dependencies = [
 
 [[package]]
 name = "sig-net"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "getrandom 0.2.17",
  "hkdf",
@@ -481,7 +481,7 @@ dependencies = [
 
 [[package]]
 name = "signet-ffi"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "cbindgen",
  "sig-net",
