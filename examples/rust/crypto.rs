@@ -88,7 +88,7 @@ fn main() {
     //--------------------------------------------------------------------------
     // 6. TUID conversion
     //--------------------------------------------------------------------------
-    let hex = tuid.to_hex();
+    let hex = tuid.to_hex_upper();
     let hex_str = core::str::from_utf8(&hex).unwrap();
     assert_eq!(hex_str, "534C00000001");
     println!("TUID to hex: {}", hex_str);

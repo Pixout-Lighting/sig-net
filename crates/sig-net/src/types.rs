@@ -5,6 +5,15 @@ use crate::util::hex_char;
 
 pub type Result<T> = core::result::Result<T, SigNetError>;
 
+pub type SoemCode = u32;
+
+/// Собрать SoemCode из ESTA MfgID и ProductVariantID.
+pub fn soem_code(mfg_id: u16, product_variant_id: u16) -> SoemCode {
+    ((mfg_id as u32) << 16) | (product_variant_id as u32)
+}
+pub fn soem_code_mfg(sc: SoemCode) -> u16 { (sc >> 16) as u16 }
+pub fn soem_code_variant(sc: SoemCode) -> u16 { sc as u16 }
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SigNetError {
     InvalidArgument,
@@ -22,6 +31,7 @@ pub enum SigNetError {
     PassphraseInsufficientClasses,
     PassphraseConsecutiveIdentical,
     PassphraseConsecutiveSequential,
+    SessionIdOverflow,
 }
 
 impl fmt::Display for SigNetError {
@@ -42,6 +52,7 @@ impl fmt::Display for SigNetError {
             SigNetError::PassphraseInsufficientClasses => write!(f, "insufficient character classes"),
             SigNetError::PassphraseConsecutiveIdentical => write!(f, "consecutive identical characters"),
             SigNetError::PassphraseConsecutiveSequential => write!(f, "consecutive sequential characters"),
+            SigNetError::SessionIdOverflow => write!(f, "session ID overflow, manual intervention required"),
         }
     }
 }
@@ -249,7 +260,7 @@ pub struct ReceivedPacketInfo {
     pub message_id: u16,
     pub sender_tuid: [u8; TUID_LENGTH],
     pub endpoint: u16,
-    pub mfg_code: u16,
+    pub soem_code: SoemCode,
     pub session_id: u32,
     pub seq_num: u32,
     pub dmx_slot_count: u16,
@@ -276,7 +287,8 @@ impl TUID {
         &self.0
     }
 
-    pub fn to_hex(&self) -> [u8; TUID_HEX_LENGTH] {
+    /// Uppercase hex для URI (§8.2 нормативное требование).
+    pub fn to_hex_upper(&self) -> [u8; TUID_HEX_LENGTH] {
         const HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
         let mut out = [0u8; TUID_HEX_LENGTH];
         for i in 0..TUID_LENGTH {
@@ -284,6 +296,22 @@ impl TUID {
             out[i * 2 + 1] = HEX_CHARS[(self.0[i] & 0x0F) as usize];
         }
         out
+    }
+
+    /// Lowercase hex для отображения на экране (§7.4).
+    pub fn to_hex_display(&self) -> [u8; TUID_HEX_LENGTH] {
+        const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
+        let mut out = [0u8; TUID_HEX_LENGTH];
+        for i in 0..TUID_LENGTH {
+            out[i * 2] = HEX_CHARS[(self.0[i] >> 4) as usize];
+            out[i * 2 + 1] = HEX_CHARS[(self.0[i] & 0x0F) as usize];
+        }
+        out
+    }
+
+    #[deprecated(since = "0.18.0", note = "use to_hex_display() or to_hex_upper()")]
+    pub fn to_hex(&self) -> [u8; TUID_HEX_LENGTH] {
+        self.to_hex_display()
     }
 
     pub fn from_hex(hex: &[u8]) -> Result<Self> {
@@ -311,7 +339,7 @@ pub fn should_increment_session(seq_num: u32) -> bool {
 }
 
 pub fn calculate_multicast_address(universe: u16) -> Result<[u8; 4]> {
-    if universe < MIN_UNIVERSE || universe > MAX_UNIVERSE {
+    if !(MIN_UNIVERSE..=MAX_UNIVERSE).contains(&universe) {
         return Err(SigNetError::InvalidArgument);
     }
     let index = ((universe - 1) % 100) + 1;

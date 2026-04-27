@@ -40,7 +40,7 @@ pub fn derive_manager_local_key(
     tuid: &[u8; TUID_LENGTH],
     mgr_local_key: &mut [u8; DERIVED_KEY_LENGTH],
 ) -> Result<()> {
-    let hex = TUID(*tuid).to_hex();
+    let hex = TUID(*tuid).to_hex_upper();
     let mut info = [0u8; HKDF_INFO_INPUT_MAX];
     let prefix_len = HKDF_INFO_MANAGER_LOCAL_PREFIX.len();
     info[..prefix_len].copy_from_slice(HKDF_INFO_MANAGER_LOCAL_PREFIX);
@@ -106,8 +106,8 @@ pub fn validate_passphrase(passphrase: &[u8]) -> Result<()> {
 }
 
 pub fn analyse_passphrase(passphrase: &[u8]) -> Result<PassphraseChecks> {
-    let mut checks = PassphraseChecks::default();
-    checks.length = passphrase.len();
+    let length = passphrase.len();
+    let mut checks = PassphraseChecks { length, ..Default::default() };
 
     // Bug 3 fix: empty passphrase must return error, not Ok
     if passphrase.is_empty() {
@@ -188,11 +188,11 @@ pub fn generate_random_passphrase(buf: &mut [u8; 11]) -> Result<()> {
         let mut phrase = [0u8; PASSPHRASE_GENERATED_LENGTH];
         getrandom::getrandom(&mut phrase).map_err(|_| SigNetError::Crypto)?;
 
-        for i in 0..phrase.len() {
-            let idx = phrase[i] as usize;
+        for b in &mut phrase {
+            let idx = *b as usize;
             let set_idx = idx % 4;
             let set = sets[set_idx];
-            phrase[i] = set[idx % set.len()];
+            *b = set[idx % set.len()];
         }
 
         if analyse_passphrase(&phrase).is_ok() {

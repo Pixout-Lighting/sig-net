@@ -45,7 +45,7 @@ fn main() {
     // TUID
     //--------------------------------------------------------------------------
     let tuid = TUID::from_hex(b"534C00000001").unwrap();
-    let hex = tuid.to_hex();
+    let hex = tuid.to_hex_upper();
     let hex_str = core::str::from_utf8(&hex).unwrap();
     assert_eq!(hex_str, "534C00000001");
     println!("TUID: {} -> {}", hex_str, hex_str);
@@ -109,7 +109,7 @@ fn main() {
     println!("CoAP header built: {} bytes", pb.len());
 
     let mut uri_buf = [0u8; 96];
-    let uri_len = coap::build_uri_string(1, &mut uri_buf).unwrap();
+    let uri_len = coap::build_uri_string(1, "local", &mut uri_buf).unwrap();
     let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
     assert_eq!(uri, "/sig-net/v1/local/level/1");
     println!("URI string: {}", uri);

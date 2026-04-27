@@ -102,7 +102,7 @@ fn packet_buffer_overflow() {
 fn tuid_hex_roundtrip() {
     let original = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC];
     let tuid = TUID(original);
-    let hex = tuid.to_hex();
+    let hex = tuid.to_hex_upper();
     let hex_str = core::str::from_utf8(&hex).unwrap();
     assert_eq!(hex_str, "123456789ABC");
 
@@ -298,7 +298,7 @@ fn dmx_packet_hmac_roundtrip() {
 
     let mut buf = PacketBuffer::new();
     sig_net::send::build_dmx_packet(
-        &mut buf, universe, &dmx, 64, &tuid, 0, 0, 1, 1, &sender_key, 1,
+        &mut buf, universe, &dmx, 64, &tuid, 0, 0, 1, 1, &sender_key, 1, "local",
     ).unwrap();
 
     // Parse the packet and verify HMAC
@@ -333,11 +333,11 @@ fn dmx_packet_slot_count_validated() {
     let mut buf = PacketBuffer::new();
 
     assert!(sig_net::send::build_dmx_packet(
-        &mut buf, 1, &dmx, 0, &tuid, 0, 0, 1, 1, &key, 1
+        &mut buf, 1, &dmx, 0, &tuid, 0, 0, 1, 1, &key, 1, "local"
     ).is_err(), "slot_count=0 should fail");
 
     assert!(sig_net::send::build_dmx_packet(
-        &mut buf, 1, &dmx, 513, &tuid, 0, 0, 1, 1, &key, 1
+        &mut buf, 1, &dmx, 513, &tuid, 0, 0, 1, 1, &key, 1, "local"
     ).is_err(), "slot_count=513 should fail");
 }
 
@@ -359,7 +359,7 @@ fn coap_uri_path_options_level() {
     // Build CoAP header + URI path options for universe 517
     let mut buf = PacketBuffer::new();
     sig_net::coap::build_coap_header(&mut buf, 42).unwrap();
-    sig_net::coap::build_uri_path_options(&mut buf, 517).unwrap();
+    sig_net::coap::build_uri_path_options(&mut buf, 517, "local").unwrap();
     
     // Parse and verify the URI
     let mut reader = sig_net::parse::PacketReader::new(buf.as_slice(), buf.len());
@@ -422,8 +422,7 @@ fn tid_poll_value_len_constant_matches_actual() {
     sig_net::tlv::encode_tid_poll(
         &mut buf,
         &[0u8; TUID_LENGTH],
-        0x1234,
-        0x0001,
+        soem_code(0x1234, 0x0001),
         &[0u8; TUID_LENGTH],
         &[0xFFu8; TUID_LENGTH],
         0xFFFF,
@@ -442,8 +441,7 @@ fn tid_poll_reply_value_len_constant_matches_actual() {
     sig_net::tlv::encode_tid_poll_reply(
         &mut buf,
         &[0u8; TUID_LENGTH],
-        0x1234,
-        0x0001,
+        soem_code(0x1234, 0x0001),
         0xABCD,
     ).unwrap();
     // 4 bytes TID+LEN header + value
@@ -461,4 +459,297 @@ fn generated_passphrase_passes_validation() {
         sig_net::crypto::validate_passphrase(&buf[..len]).is_ok(),
         "generated passphrase failed validation: {:?}", &buf[..len]
     );
+}
+
+// ---------------------------------------------------------------------------
+// New tests for v0.18 spec upgrade (§11 test matrix)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_soem_code_roundtrip() {
+    let sc = soem_code(0x1234, 0x5678);
+    assert_eq!(sc, 0x12345678);
+    assert_eq!(soem_code_mfg(sc), 0x1234);
+    assert_eq!(soem_code_variant(sc), 0x5678);
+}
+
+#[test]
+fn test_tuid_uppercase_in_uri() {
+    let tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let mut uri_buf = [0u8; 96];
+    let uri_len = sig_net::coap::build_node_uri_string(&tuid, 0, "local", &mut uri_buf).unwrap();
+    let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
+    assert!(uri.contains("534C00000001"), "URI must contain uppercase TUID, got: {}", uri);
+}
+
+#[test]
+fn test_encode_tid_preview() {
+    let mut buf = PacketBuffer::new();
+    let dmx = [0x7Fu8; 64];
+    tlv::encode_tid_preview(&mut buf, &dmx).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_PREVIEW.to_be_bytes());
+
+    // empty rejected
+    let mut buf2 = PacketBuffer::new();
+    assert!(tlv::encode_tid_preview(&mut buf2, &[]).is_err());
+}
+
+#[test]
+fn test_encode_tid_timecode() {
+    let mut buf = PacketBuffer::new();
+    tlv::encode_tid_timecode(&mut buf, 10, 30, 45, 12, 1).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_TIMECODE.to_be_bytes());
+    // Length = 5
+    assert_eq!(u16::from_be_bytes([buf.as_slice()[2], buf.as_slice()[3]]), 5);
+    // Values
+    assert_eq!(buf.as_slice()[4..9], [10, 30, 45, 12, 1]);
+
+    // Parse roundtrip
+    let tlv = TLVBlock { type_id: TID_TIMECODE, value: &buf.as_slice()[4..9] };
+    let (h, m, s, f, t) = sig_net::parse::parse_tid_timecode(&tlv).unwrap();
+    assert_eq!((h, m, s, f, t), (10, 30, 45, 12, 1));
+}
+
+#[test]
+fn test_encode_tid_patch_join() {
+    let mut buf = PacketBuffer::new();
+    tlv::encode_tid_patch(&mut buf, 42, 0x01, &[0, 0, 0, 0]).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_PATCH.to_be_bytes());
+    // Length = 7
+    assert_eq!(u16::from_be_bytes([buf.as_slice()[2], buf.as_slice()[3]]), 7);
+    // Universe=42 (u16), command=0x01, IP=[0,0,0,0]
+    let universe = u16::from_be_bytes([buf.as_slice()[4], buf.as_slice()[5]]);
+    assert_eq!(universe, 42);
+    assert_eq!(buf.as_slice()[6], 0x01);  // Join
+    assert_eq!(buf.as_slice()[7..11], [0, 0, 0, 0]);
+}
+
+#[test]
+fn test_encode_tid_patch_leave() {
+    let mut buf = PacketBuffer::new();
+    tlv::encode_tid_patch(&mut buf, 99, 0x02, &[239, 254, 0, 5]).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_PATCH.to_be_bytes());
+    assert_eq!(buf.as_slice()[6], 0x02);  // Leave
+    assert_eq!(buf.as_slice()[7..11], [239, 254, 0, 5]);
+
+    // Parse roundtrip
+    let tlv = TLVBlock { type_id: TID_PATCH, value: &buf.as_slice()[4..11] };
+    let (univ, cmd, ip) = sig_net::parse::parse_tid_patch(&tlv).unwrap();
+    assert_eq!(univ, 99);
+    assert_eq!(cmd, 0x02);
+    assert_eq!(ip, [239, 254, 0, 5]);
+}
+
+#[test]
+fn test_encode_tid_rt_mult_override() {
+    let mut buf = PacketBuffer::new();
+    tlv::encode_tid_rt_mult_override(&mut buf, 0x01).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_RT_MULT_OVERRIDE.to_be_bytes());
+    assert_eq!(u16::from_be_bytes([buf.as_slice()[2], buf.as_slice()[3]]), 1);
+    assert_eq!(buf.as_slice()[4], 0x01);
+}
+
+#[test]
+fn test_encode_tid_rt_otw_capability() {
+    let mut buf = PacketBuffer::new();
+    tlv::encode_tid_rt_otw_capability(&mut buf, 443, 0x03).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_RT_OTW_CAPABILITY.to_be_bytes());
+    assert_eq!(u16::from_be_bytes([buf.as_slice()[2], buf.as_slice()[3]]), 3);
+    let port = u16::from_be_bytes([buf.as_slice()[4], buf.as_slice()[5]]);
+    assert_eq!(port, 443);
+    assert_eq!(buf.as_slice()[6], 0x03);
+}
+
+#[test]
+fn test_build_beacon_packet() {
+    let tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let sc = soem_code(0x0000, 0x0001);
+    let mut buf = PacketBuffer::new();
+
+    send::build_beacon_packet(
+        &mut buf, &tuid, sc, "Test Node", 4, None, 42,
+    ).unwrap();
+
+    // Parse and verify
+    let pkt = buf.as_slice().to_vec();
+    let pkt_len = pkt.len() as u16;
+    let mut reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    let header = reader.parse_coap_header().unwrap();
+    reader.skip_token(header.token_length).unwrap();
+
+    let mut uri_buf = [0u8; 96];
+    let uri_len = reader.extract_uri_string(&mut uri_buf).unwrap();
+    let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
+    assert!(uri.contains("node_beacon"));
+    assert!(uri.contains("534C00000001"));
+
+    // Go to options
+    let mut opt_reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    opt_reader.parse_coap_header().unwrap();
+    opt_reader.skip_token(header.token_length).unwrap();
+    let options = opt_reader.parse_signet_options().unwrap();
+    assert_eq!(options.security_mode, SECURITY_MODE_UNPROVISIONED);
+    assert_eq!(options.hmac, [0u8; HMAC_SHA256_LENGTH]);
+}
+
+#[test]
+fn test_build_timecode_packet() {
+    let mut k0 = [0u8; K0_KEY_LENGTH];
+    sig_net::crypto::derive_k0_from_passphrase(b"Ge2p$E$4*A", &mut k0).unwrap();
+    let mut sender_key = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_sender_key(&k0, &mut sender_key).unwrap();
+
+    let tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let mut buf = PacketBuffer::new();
+
+    send::build_timecode_packet(
+        &mut buf, 0, 1, 2, 3, 4, 1,
+        &tuid, 0, 0, 1, 1, &sender_key, 42, "local",
+    ).unwrap();
+
+    // Parse and verify HMAC
+    let pkt = buf.as_slice().to_vec();
+    let pkt_len = pkt.len() as u16;
+    let mut reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    let header = reader.parse_coap_header().unwrap();
+    reader.skip_token(header.token_length).unwrap();
+
+    let mut uri_buf = [0u8; 96];
+    let uri_len = reader.extract_uri_string(&mut uri_buf).unwrap();
+    let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
+    assert!(uri.contains("timecode"));
+
+    let mut opt_reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    opt_reader.parse_coap_header().unwrap();
+    opt_reader.skip_token(header.token_length).unwrap();
+    let options = opt_reader.parse_signet_options().unwrap();
+    let payload = opt_reader.current_ptr().to_vec();
+
+    let verify = sig_net::crypto::verify_packet_hmac(uri, &options, &payload, &sender_key);
+    assert!(verify.is_ok(), "timecode HMAC must be valid");
+}
+
+#[test]
+fn test_build_node_lost_packet() {
+    let mut k0 = [0u8; K0_KEY_LENGTH];
+    sig_net::crypto::derive_k0_from_passphrase(b"Ge2p$E$4*A", &mut k0).unwrap();
+    let mut citizen_key = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_citizen_key(&k0, &mut citizen_key).unwrap();
+
+    let tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let sc = soem_code(0x0000, 0x0001);
+    let mut buf = PacketBuffer::new();
+
+    send::build_node_lost_packet(
+        &mut buf, &tuid, sc, 3, 0x01, ROLE_CAP_NODE,
+        0x00, None, 1, 1, &citizen_key, 42, "local",
+    ).unwrap();
+
+    // Parse and verify HMAC
+    let pkt = buf.as_slice().to_vec();
+    let pkt_len = pkt.len() as u16;
+    let mut reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    let header = reader.parse_coap_header().unwrap();
+    reader.skip_token(header.token_length).unwrap();
+
+    let mut uri_buf = [0u8; 96];
+    let uri_len = reader.extract_uri_string(&mut uri_buf).unwrap();
+    let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
+    assert!(uri.contains("node_lost"));
+
+    let mut opt_reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    opt_reader.parse_coap_header().unwrap();
+    opt_reader.skip_token(header.token_length).unwrap();
+    let options = opt_reader.parse_signet_options().unwrap();
+    let payload = opt_reader.current_ptr().to_vec();
+
+    let verify = sig_net::crypto::verify_packet_hmac(uri, &options, &payload, &citizen_key);
+    assert!(verify.is_ok(), "node_lost HMAC must be valid");
+}
+
+#[test]
+fn test_build_manager_command_packet() {
+    let mut k0 = [0u8; K0_KEY_LENGTH];
+    sig_net::crypto::derive_k0_from_passphrase(b"Ge2p$E$4*A", &mut k0).unwrap();
+    let target_tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x02];
+    let mut km_local = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_manager_local_key(&k0, &target_tuid, &mut km_local).unwrap();
+
+    let mgr_tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let payload = [0x00, 0x01, 0x02];  // pre-encoded TLV payload
+    let mut buf = PacketBuffer::new();
+
+    send::build_manager_command_packet(
+        &mut buf, &target_tuid, 0, &payload,
+        &mgr_tuid, 0x0000, 1, 1, &km_local, 42, "local",
+    ).unwrap();
+
+    // Parse and verify URI contains /manager/
+    let pkt = buf.as_slice().to_vec();
+    let pkt_len = pkt.len() as u16;
+    let mut reader = sig_net::parse::PacketReader::new(&pkt, pkt_len);
+    let header = reader.parse_coap_header().unwrap();
+    reader.skip_token(header.token_length).unwrap();
+
+    let mut uri_buf = [0u8; 96];
+    let uri_len = reader.extract_uri_string(&mut uri_buf).unwrap();
+    let uri = core::str::from_utf8(&uri_buf[..uri_len]).unwrap();
+    assert!(uri.contains("manager"), "URI must contain /manager/");
+    assert!(uri.contains("534C00000002"), "URI must contain target TUID");
+}
+
+#[test]
+fn test_firmware_version_id_u32() {
+    let mut buf = PacketBuffer::new();
+    tlv::encode_tid_rt_firmware_version(&mut buf, 0xDEADBEEF, "v2.0").unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_RT_FIRMWARE_VERSION.to_be_bytes());
+    // Length = 4 (u32) + 4 (string)
+    assert_eq!(u16::from_be_bytes([buf.as_slice()[2], buf.as_slice()[3]]), 8);
+    let ver = u32::from_be_bytes([
+        buf.as_slice()[4], buf.as_slice()[5], buf.as_slice()[6], buf.as_slice()[7],
+    ]);
+    assert_eq!(ver, 0xDEADBEEF);
+    assert_eq!(&buf.as_slice()[8..12], b"v2.0");
+}
+
+#[test]
+fn test_poll_soem_code() {
+    let mut buf = PacketBuffer::new();
+    let sc = soem_code(0x1234, 0x5678);
+    tlv::encode_tid_poll(
+        &mut buf,
+        &[0x11u8; TUID_LENGTH],
+        sc,
+        &[0x22u8; TUID_LENGTH],
+        &[0x33u8; TUID_LENGTH],
+        0xFFFF,
+        QUERY_FULL,
+    ).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_POLL.to_be_bytes());
+    // soem_code starts at offset 10 (2+2+6=10)
+    let written_sc = u32::from_be_bytes([
+        buf.as_slice()[10], buf.as_slice()[11], buf.as_slice()[12], buf.as_slice()[13],
+    ]);
+    assert_eq!(written_sc, sc);
+}
+
+#[test]
+fn test_scope_in_uri() {
+    let tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let mut buf = [0u8; 96];
+    let len = sig_net::coap::build_node_uri_string(&tuid, 0, "production", &mut buf).unwrap();
+    let uri = core::str::from_utf8(&buf[..len]).unwrap();
+    assert!(uri.contains("production"), "URI must contain scope 'production', got: {}", uri);
+    assert!(!uri.contains("local"), "Scope should not be 'local'");
+}
+
+#[test]
+fn test_session_id_overflow_error() {
+    assert!(should_increment_session(0xFFFFFFFF));
+    assert!(!should_increment_session(0x00000001));
+    assert!(!should_increment_session(0xFFFFFFFE));
+    // Verify SigNetError::SessionIdOverflow exists and has a display message
+    let err = SigNetError::SessionIdOverflow;
+    let msg = format!("{}", err);
+    assert!(msg.contains("session"), "SessionIdOverflow display should mention session");
 }

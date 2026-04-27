@@ -45,6 +45,7 @@ fn main() {
         1,                  // sequence number
         &sender_key,        // signing key
         1,                  // CoAP message ID
+        "local",
     ).unwrap();
 
     println!("DMX packet: {} bytes", buf.len());
@@ -73,17 +74,18 @@ fn main() {
     send::build_announce_packet(
         &mut announce_buf,
         &tuid.0,
-        0x534C,
-        0x0001,
-        0x0001,
+        soem_code(0x534C, 0x0001),
+        0x00000001u32,
         "Sig-Net Node v1.0",
         0x01,
         ROLE_CAP_SENDER,
+        1,      // endpoint_count
         0,
         1,
         1,
         &sender_key,
         2,
+        "local",
     ).unwrap();
     println!("Announce packet: {} bytes", announce_buf.len());
 
@@ -100,8 +102,7 @@ fn main() {
     send::build_poll_packet(
         &mut poll_buf,
         &mgr_tuid.0,
-        0x534C,
-        0x0001,
+        soem_code(0x534C, 0x0001),
         &[0u8; 6],  // tuid_lo (broadcast)
         &[0xFFu8; 6], // tuid_hi (broadcast)
         0xFFFF,     // all endpoints
@@ -110,6 +111,7 @@ fn main() {
         1,
         &mgr_key,
         1,
+        "local",
     ).unwrap();
     println!("Poll packet: {} bytes", poll_buf.len());
 

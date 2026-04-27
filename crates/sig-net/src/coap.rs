@@ -48,15 +48,15 @@ pub fn build_coap_header(buffer: &mut PacketBuffer, message_id: u16) -> Result<(
     buffer.write_bytes(&header.to_bytes())
 }
 
-pub fn build_uri_path_options(buffer: &mut PacketBuffer, universe: u16) -> Result<()> {
-    if universe < MIN_UNIVERSE || universe > MAX_UNIVERSE {
+pub fn build_uri_path_options(buffer: &mut PacketBuffer, universe: u16, scope: &str) -> Result<()> {
+    if !(MIN_UNIVERSE..=MAX_UNIVERSE).contains(&universe) {
         return Err(SigNetError::InvalidArgument);
     }
 
     let segments = [
         SIGNET_URI_PREFIX,
         SIGNET_URI_VERSION,
-        SIGNET_URI_SCOPE_DEFAULT,
+        scope,
         SIGNET_URI_LEVEL,
     ];
 
@@ -70,15 +70,15 @@ pub fn build_uri_path_options(buffer: &mut PacketBuffer, universe: u16) -> Resul
     encode_coap_option(buffer, COAP_OPTION_URI_PATH, prev_option, universe_str.as_bytes())
 }
 
-pub fn build_uri_string(universe: u16, uri_output: &mut [u8]) -> Result<usize> {
-    if universe < MIN_UNIVERSE || universe > MAX_UNIVERSE {
+pub fn build_uri_string(universe: u16, scope: &str, uri_output: &mut [u8]) -> Result<usize> {
+    if !(MIN_UNIVERSE..=MAX_UNIVERSE).contains(&universe) {
         return Err(SigNetError::InvalidArgument);
     }
     let s = format!(
         "/{}/{}/{}/{}/{}",
         SIGNET_URI_PREFIX,
         SIGNET_URI_VERSION,
-        SIGNET_URI_SCOPE_DEFAULT,
+        scope,
         SIGNET_URI_LEVEL,
         universe
     );
@@ -93,16 +93,17 @@ pub fn build_uri_string(universe: u16, uri_output: &mut [u8]) -> Result<usize> {
 pub fn build_node_uri_string(
     tuid: &[u8; TUID_LENGTH],
     endpoint: u16,
+    scope: &str,
     uri_output: &mut [u8],
 ) -> Result<usize> {
-    let hex = TUID(*tuid).to_hex();
+    let hex = TUID(*tuid).to_hex_upper();
     let hex_str = core::str::from_utf8(&hex)
         .map_err(|_| SigNetError::Encode)?;
     let s = format!(
         "/{}/{}/{}/{}/{}/{}",
         SIGNET_URI_PREFIX,
         SIGNET_URI_VERSION,
-        SIGNET_URI_SCOPE_DEFAULT,
+        scope,
         SIGNET_URI_NODE,
         hex_str,
         endpoint
@@ -112,5 +113,108 @@ pub fn build_node_uri_string(
         return Err(SigNetError::InvalidArgument);
     }
     uri_output[..bytes.len()].copy_from_slice(bytes);
+    Ok(bytes.len())
+}
+
+/// /sig-net/v1/<scope>/node_beacon/{TUID_UPPER}
+pub fn build_node_beacon_uri_string(
+    tuid: &[u8; TUID_LENGTH],
+    scope: &str,
+    output: &mut [u8],
+) -> Result<usize> {
+    let hex = TUID(*tuid).to_hex_upper();
+    let hex_str = core::str::from_utf8(&hex)
+        .map_err(|_| SigNetError::Encode)?;
+    let s = format!(
+        "/{}/{}/{}/node_beacon/{}",
+        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, hex_str
+    );
+    let bytes = s.as_bytes();
+    if bytes.len() > output.len() {
+        return Err(SigNetError::InvalidArgument);
+    }
+    output[..bytes.len()].copy_from_slice(bytes);
+    Ok(bytes.len())
+}
+
+/// /sig-net/v1/<scope>/node_lost/{TUID_UPPER}
+pub fn build_node_lost_uri_string(
+    tuid: &[u8; TUID_LENGTH],
+    scope: &str,
+    output: &mut [u8],
+) -> Result<usize> {
+    let hex = TUID(*tuid).to_hex_upper();
+    let hex_str = core::str::from_utf8(&hex)
+        .map_err(|_| SigNetError::Encode)?;
+    let s = format!(
+        "/{}/{}/{}/node_lost/{}",
+        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, hex_str
+    );
+    let bytes = s.as_bytes();
+    if bytes.len() > output.len() {
+        return Err(SigNetError::InvalidArgument);
+    }
+    output[..bytes.len()].copy_from_slice(bytes);
+    Ok(bytes.len())
+}
+
+/// /sig-net/v1/<scope>/manager/{TUID_UPPER}/{endpoint}
+pub fn build_manager_uri_string(
+    tuid: &[u8; TUID_LENGTH],
+    endpoint: u16,
+    scope: &str,
+    output: &mut [u8],
+) -> Result<usize> {
+    let hex = TUID(*tuid).to_hex_upper();
+    let hex_str = core::str::from_utf8(&hex)
+        .map_err(|_| SigNetError::Encode)?;
+    let s = format!(
+        "/{}/{}/{}/manager/{}/{}",
+        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, hex_str, endpoint
+    );
+    let bytes = s.as_bytes();
+    if bytes.len() > output.len() {
+        return Err(SigNetError::InvalidArgument);
+    }
+    output[..bytes.len()].copy_from_slice(bytes);
+    Ok(bytes.len())
+}
+
+/// /sig-net/v1/<scope>/timecode/{stream}
+pub fn build_timecode_uri_string(
+    stream: u8,
+    scope: &str,
+    output: &mut [u8],
+) -> Result<usize> {
+    let s = format!(
+        "/{}/{}/{}/timecode/{}",
+        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, stream
+    );
+    let bytes = s.as_bytes();
+    if bytes.len() > output.len() {
+        return Err(SigNetError::InvalidArgument);
+    }
+    output[..bytes.len()].copy_from_slice(bytes);
+    Ok(bytes.len())
+}
+
+/// /sig-net/v1/<scope>/preview/{universe}
+pub fn build_preview_uri_string(
+    universe: u16,
+    scope: &str,
+    output: &mut [u8],
+) -> Result<usize> {
+    if !(MIN_UNIVERSE..=MAX_UNIVERSE).contains(&universe) {
+        return Err(SigNetError::InvalidArgument);
+    }
+    let s = format!(
+        "/{}/{}/{}/preview/{}",
+        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, universe
+    );
+    let bytes = s.as_bytes();
+    if bytes.len() > output.len() {
+        return Err(SigNetError::InvalidArgument);
+    }
+    output[..bytes.len()].copy_from_slice(bytes);
     Ok(bytes.len())
 }

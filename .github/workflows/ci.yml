@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test sig-net
+        run: cargo test -p sig-net
+
+      - name: Clippy sig-net
+        run: cargo clippy -p sig-net -- -D warnings
+
+      - name: Build signet-ffi
+        run: cargo build -p signet-ffi

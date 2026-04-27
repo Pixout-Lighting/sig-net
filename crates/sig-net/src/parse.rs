@@ -114,15 +114,15 @@ impl<'a> PacketReader<'a> {
 
         let delta = match delta_nib {
             0..=12 => delta_nib as u16,
-            13 => COAP_OPTION_EXT8_BASE as u16 + self.read_byte()? as u16,
-            14 => COAP_OPTION_EXT16_BASE as u16 + self.read_u16()?,
+            13 => COAP_OPTION_EXT8_BASE + self.read_byte()? as u16,
+            14 => COAP_OPTION_EXT16_BASE + self.read_u16()?,
             _ => return Err(SigNetError::InvalidOption),
         };
 
         let length = match len_nib {
             0..=12 => len_nib as u16,
-            13 => COAP_OPTION_EXT8_BASE as u16 + self.read_byte()? as u16,
-            14 => COAP_OPTION_EXT16_BASE as u16 + self.read_u16()?,
+            13 => COAP_OPTION_EXT8_BASE + self.read_byte()? as u16,
+            14 => COAP_OPTION_EXT16_BASE + self.read_u16()?,
             _ => return Err(SigNetError::InvalidOption),
         };
 
@@ -267,6 +267,32 @@ pub fn parse_tid_level(tlv: &TLVBlock, dmx_data: &mut [u8]) -> Result<u16> {
     }
     dmx_data[..tlv.value.len()].copy_from_slice(tlv.value);
     Ok(tlv.value.len() as u16)
+}
+
+/// Parse TID_TIMECODE (0x0202, Length=5) → (hours, minutes, seconds, frames, tc_type)
+pub fn parse_tid_timecode(tlv: &TLVBlock) -> Result<(u8, u8, u8, u8, u8)> {
+    if tlv.type_id != TID_TIMECODE {
+        return Err(SigNetError::InvalidArgument);
+    }
+    if tlv.value.len() != 5 {
+        return Err(SigNetError::InvalidPacket);
+    }
+    Ok((tlv.value[0], tlv.value[1], tlv.value[2], tlv.value[3], tlv.value[4]))
+}
+
+/// Parse TID_PATCH (0x0203, Length=7) → (universe, command, multicast_ip)
+pub fn parse_tid_patch(tlv: &TLVBlock) -> Result<(u16, u8, [u8; 4])> {
+    if tlv.type_id != TID_PATCH {
+        return Err(SigNetError::InvalidArgument);
+    }
+    if tlv.value.len() != 7 {
+        return Err(SigNetError::InvalidPacket);
+    }
+    let universe = u16::from_be_bytes([tlv.value[0], tlv.value[1]]);
+    let command = tlv.value[2];
+    let mut ip = [0u8; 4];
+    ip.copy_from_slice(&tlv.value[3..7]);
+    Ok((universe, command, ip))
 }
 
 pub fn parse_hex_bytes(text: &[u8], out_bytes: &mut [u8], byte_count: u16) -> Result<()> {

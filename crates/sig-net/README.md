@@ -10,6 +10,7 @@
 
 <div align="center">
 
+[![CI][ci-badge]][ci-url]
 [![crates.io][crates-badge]][crates-url]
 [![docs.rs][docs-badge]][docs-url]
 [![MIT licensed][license-badge]][license-url]
@@ -54,7 +55,7 @@ let tuid = TUID::from_hex(b"534C00000001")?;
 let dmx: Vec<u8> = (0..512).map(|i| (i * 4) as u8).collect();
 
 let mut buf = PacketBuffer::new();
-send::build_dmx_packet(&mut buf, 1, &dmx, &tuid.0, 0, 0x0000, 1, 1, &sender_key, 1)?;
+send::build_dmx_packet(&mut buf, 1, &dmx, 512, &tuid.0, 0, 0x0000, 1, 1, &sender_key, 1, "local")?;
 ```
 
 ## Feature Flags
@@ -164,7 +165,7 @@ crates/
 │   │   ├── parse      PacketReader, CoAP/TLV parsing, HMAC verification
 │   │   └── net        UDP multicast (socket2)
 │   └── tests/
-│       └── integration.rs  24 integration tests
+│       └── integration.rs  55 integration tests
 └── signet-ffi/        ← C-compatible FFI (see [README](../signet-ffi/README.md))
 examples/
 ├── rust/              ← Rust examples (core, crypto, full)
@@ -197,6 +198,8 @@ examples/
 
 Sig-Net is free and open-source software licensed under the [MIT License](./LICENSE).
 
+[ci-badge]: https://github.com/anomalyco/signet/actions/workflows/ci.yml/badge.svg
+[ci-url]: https://github.com/anomalyco/signet/actions/workflows/ci.yml
 [crates-badge]: https://img.shields.io/crates/v/sig-net?style=flat-square
 [crates-url]: https://crates.io/crates/sig-net
 [docs-badge]: https://img.shields.io/docsrs/sig-net?style=flat-square

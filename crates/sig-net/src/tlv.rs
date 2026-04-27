@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::*;
 
 pub fn encode_tlv(buffer: &mut PacketBuffer, tlv: &TLVBlock) -> Result<()> {
@@ -36,8 +37,7 @@ pub fn encode_tid_sync(buffer: &mut PacketBuffer) -> Result<()> {
 pub fn encode_tid_poll(
     buffer: &mut PacketBuffer,
     manager_tuid: &[u8; TUID_LENGTH],
-    mfg_code: u16,
-    product_variant_id: u16,
+    soem_code: SoemCode,
     tuid_lo: &[u8; TUID_LENGTH],
     tuid_hi: &[u8; TUID_LENGTH],
     target_endpoint: u16,
@@ -46,8 +46,7 @@ pub fn encode_tid_poll(
     buffer.write_u16(TID_POLL)?;
     buffer.write_u16(TID_POLL_VALUE_LEN)?;
     buffer.write_bytes(manager_tuid)?;
-    buffer.write_u16(mfg_code)?;
-    buffer.write_u16(product_variant_id)?;
+    buffer.write_u32(soem_code)?;
     buffer.write_bytes(tuid_lo)?;
     buffer.write_bytes(tuid_hi)?;
     buffer.write_u16(target_endpoint)?;
@@ -57,15 +56,13 @@ pub fn encode_tid_poll(
 pub fn encode_tid_poll_reply(
     buffer: &mut PacketBuffer,
     tuid: &[u8; TUID_LENGTH],
-    mfg_code: u16,
-    product_variant_id: u16,
+    soem_code: SoemCode,
     change_count: u16,
 ) -> Result<()> {
     buffer.write_u16(TID_POLL_REPLY)?;
     buffer.write_u16(TID_POLL_REPLY_VALUE_LEN)?;
     buffer.write_bytes(tuid)?;
-    buffer.write_u16(mfg_code)?;
-    buffer.write_u16(product_variant_id)?;
+    buffer.write_u32(soem_code)?;
     buffer.write_u16(change_count)
 }
 
@@ -77,13 +74,13 @@ pub fn encode_tid_rt_protocol_version(buffer: &mut PacketBuffer, protocol_versio
 
 pub fn encode_tid_rt_firmware_version(
     buffer: &mut PacketBuffer,
-    machine_version_id: u16,
+    machine_version_id: u32,
     version_string: &str,
 ) -> Result<()> {
     let vs = version_string.as_bytes();
     buffer.write_u16(TID_RT_FIRMWARE_VERSION)?;
-    buffer.write_u16(2 + vs.len() as u16)?;
-    buffer.write_u16(machine_version_id)?;
+    buffer.write_u16(4 + vs.len() as u16)?;
+    buffer.write_u32(machine_version_id)?;
     buffer.write_bytes(vs)
 }
 
@@ -93,19 +90,106 @@ pub fn encode_tid_rt_role_capability(buffer: &mut PacketBuffer, role_capability_
     buffer.write_byte(role_capability_bits)
 }
 
+pub fn encode_tid_preview(buffer: &mut PacketBuffer, dmx_data: &[u8]) -> Result<()> {
+    if dmx_data.is_empty() || dmx_data.len() > MAX_DMX_SLOTS as usize {
+        return Err(SigNetError::InvalidArgument);
+    }
+    let tlv = TLVBlock {
+        type_id: TID_PREVIEW,
+        value: dmx_data,
+    };
+    encode_tlv(buffer, &tlv)
+}
+
+/// Timecode: 5 bytes = [hours][minutes][seconds][frames][tc_type]
+pub fn encode_tid_timecode(
+    buffer: &mut PacketBuffer,
+    hours: u8,
+    minutes: u8,
+    seconds: u8,
+    frames: u8,
+    tc_type: u8,
+) -> Result<()> {
+    buffer.write_u16(TID_TIMECODE)?;
+    buffer.write_u16(5)?;
+    buffer.write_byte(hours)?;
+    buffer.write_byte(minutes)?;
+    buffer.write_byte(seconds)?;
+    buffer.write_byte(frames)?;
+    buffer.write_byte(tc_type)
+}
+
+/// TID_PATCH: 7 bytes = [universe(u16)][command(u8)][multicast_ip(4)]
+pub fn encode_tid_patch(
+    buffer: &mut PacketBuffer,
+    universe: u16,
+    command: u8,
+    multicast_ip: &[u8; 4],
+) -> Result<()> {
+    buffer.write_u16(TID_PATCH)?;
+    buffer.write_u16(7)?;
+    buffer.write_u16(universe)?;
+    buffer.write_byte(command)?;
+    buffer.write_bytes(multicast_ip)
+}
+
+/// TID_RT_MULT_OVERRIDE: 1 byte = [state]
+pub fn encode_tid_rt_mult_override(buffer: &mut PacketBuffer, state: u8) -> Result<()> {
+    buffer.write_u16(TID_RT_MULT_OVERRIDE)?;
+    buffer.write_u16(1)?;
+    buffer.write_byte(state)
+}
+
+/// TID_RT_OTW_CAPABILITY: 3 bytes = [listener_port(u16)][protocols_bitfield(u8)]
+pub fn encode_tid_rt_otw_capability(
+    buffer: &mut PacketBuffer,
+    listener_port: u16,
+    protocols_bitfield: u8,
+) -> Result<()> {
+    buffer.write_u16(TID_RT_OTW_CAPABILITY)?;
+    buffer.write_u16(3)?;
+    buffer.write_u16(listener_port)?;
+    buffer.write_byte(protocols_bitfield)
+}
+
+/// TID_RT_REBOOT: 5 bytes = [reboot_type(u8)][b'B'][b'O'][b'O'][b'T']
+pub fn encode_tid_rt_reboot(buffer: &mut PacketBuffer, reboot_type: u8) -> Result<()> {
+    buffer.write_u16(TID_RT_REBOOT)?;
+    buffer.write_u16(5)?;
+    buffer.write_byte(reboot_type)?;
+    buffer.write_bytes(b"BOOT")
+}
+
+/// Build boot notification payload in canonical TLV order (§10.2.5).
 pub fn build_startup_announce_payload(
     buffer: &mut PacketBuffer,
     tuid: &[u8; TUID_LENGTH],
-    mfg_code: u16,
-    product_variant_id: u16,
-    firmware_version_id: u16,
+    soem_code: SoemCode,
+    firmware_version_id: u32,
     firmware_version_string: &str,
     protocol_version: u8,
     role_capability_bits: u8,
+    endpoint_count: u16,
     change_count: u16,
+    mult_override_state: u8,
+    otw_capability: Option<(u16, u8)>,
 ) -> Result<()> {
-    encode_tid_poll_reply(buffer, tuid, mfg_code, product_variant_id, change_count)?;
+    // 1. TID_POLL_REPLY
+    encode_tid_poll_reply(buffer, tuid, soem_code, change_count)?;
+    // 2. TID_RT_FIRMWARE_VERSION
     encode_tid_rt_firmware_version(buffer, firmware_version_id, firmware_version_string)?;
+    // 3. TID_RT_PROTOCOL_VERSION
     encode_tid_rt_protocol_version(buffer, protocol_version)?;
-    encode_tid_rt_role_capability(buffer, role_capability_bits)
+    // 4. TID_RT_ROLE_CAPABILITY
+    encode_tid_rt_role_capability(buffer, role_capability_bits)?;
+    // 5. TID_RT_ENDPOINT_COUNT
+    let ec = endpoint_count.to_be_bytes();
+    encode_tlv(buffer, &TLVBlock { type_id: TID_RT_ENDPOINT_COUNT, value: &ec })?;
+    // 6. TID_RT_MULT_OVERRIDE
+    encode_tid_rt_mult_override(buffer, mult_override_state)?;
+    // 7. TID_RT_OTW_CAPABILITY (only if supported)
+    if let Some((port, protocols)) = otw_capability {
+        encode_tid_rt_otw_capability(buffer, port, protocols)?;
+    }
+    Ok(())
 }
