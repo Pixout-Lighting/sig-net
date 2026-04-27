@@ -38,4 +38,4 @@ c++ -std=c++17 -I include \
     -o your_program
 ```
 
-See [examples/signet-ffi](../examples/signet-ffi/) for a complete working example with Makefile.
+See [examples/signet-ffi](../../examples/signet-ffi/) for a complete working example with Makefile.
