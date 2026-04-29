@@ -6,7 +6,7 @@
 //   cargo run -p sig-net --example core
 //
 // Demonstrates usage with only core types (default-features = false):
-//   sig-net = { version = "0.5", default-features = false }
+//   sig-net = { version = "0.6", default-features = false }
 //==============================================================================
 
 use sig_net::*;

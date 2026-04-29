@@ -37,7 +37,7 @@ This is a **pure Rust** implementation of the Sig-Net Protocol Framework specifi
 
 ```toml
 [dependencies]
-sig-net = "0.5"
+sig-net = "0.6"
 ```
 
 **Build and send a DMX level packet:**
@@ -62,9 +62,9 @@ send::build_dmx_packet(&mut buf, 1, &dmx, 512, &tuid.0, 0, 0x0000, 1, 1, &sender
 
 ```toml
 [dependencies]
-sig-net = { version = "0.5", default-features = false }       # core types (zero deps)
-sig-net = { version = "0.5", features = ["crypto"] }          # + HMAC/HKDF/PBKDF2/passphrase
-sig-net = { version = "0.5", features = ["crypto", "net"] }   # + UDP multicast (default)
+sig-net = { version = "0.6", default-features = false }       # core types (zero deps)
+sig-net = { version = "0.6", features = ["crypto"] }          # + HMAC/HKDF/PBKDF2/passphrase
+sig-net = { version = "0.6", features = ["crypto", "net"] }   # + UDP multicast (default)
 ```
 
 ## API Overview
@@ -198,13 +198,13 @@ examples/
 
 Sig-Net is free and open-source software licensed under the [MIT License](./LICENSE).
 
-[ci-badge]: https://github.com/etroynov/sig-net/actions/workflows/ci.yml/badge.svg
-[ci-url]: https://github.com/etroynov/sig-net/actions/workflows/ci.yml
+[ci-badge]: https://github.com/Pixout-Lighting/sig-net/actions/workflows/ci.yml/badge.svg
+[ci-url]: https://github.com/Pixout-Lighting/sig-net/actions/workflows/ci.yml
 [crates-badge]: https://img.shields.io/crates/v/sig-net?style=flat-square
 [crates-url]: https://crates.io/crates/sig-net
 [docs-badge]: https://img.shields.io/docsrs/sig-net?style=flat-square
 [docs-url]: https://docs.rs/sig-net
 [license-badge]: https://img.shields.io/badge/license-MIT-blue?style=flat-square
-[license-url]: https://github.com/etroynov/sig-net/blob/main/LICENSE
+[license-url]: https://github.com/Pixout-Lighting/sig-net/blob/main/LICENSE
 [rust-badge]: https://img.shields.io/badge/rust-1.75%2B-blue?style=flat-square
 [rust-url]: https://www.rust-lang.org

@@ -43,7 +43,7 @@ MIT. See [LICENSE](./LICENSE).
 [crates-url]: https://crates.io/crates/sig-net
 [docs-badge]: https://img.shields.io/docsrs/sig-net?style=flat-square
 [docs-url]: https://docs.rs/sig-net
-[ci-badge]: https://github.com/etroynov/sig-net/actions/workflows/ci.yml/badge.svg
-[ci-url]: https://github.com/etroynov/sig-net/actions/workflows/ci.yml
+[ci-badge]: https://github.com/Pixout-Lighting/sig-net/actions/workflows/ci.yml/badge.svg
+[ci-url]: https://github.com/Pixout-Lighting/sig-net/actions/workflows/ci.yml
 [license-badge]: https://img.shields.io/badge/license-MIT-blue?style=flat-square
-[license-url]: https://github.com/etroynov/sig-net/blob/main/LICENSE
+[license-url]: https://github.com/Pixout-Lighting/sig-net/blob/main/LICENSE

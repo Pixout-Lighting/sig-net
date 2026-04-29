@@ -6,7 +6,7 @@
 //   cargo run -p sig-net --example full
 //
 // Demonstrates full usage with default features (crypto + net):
-//   sig-net = { version = "0.5", default-features = true }
+//   sig-net = { version = "0.6", default-features = true }
 //==============================================================================
 
 use sig_net::*;

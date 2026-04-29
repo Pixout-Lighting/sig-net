@@ -6,7 +6,7 @@
 //   cargo run -p sig-net --example crypto
 //
 // Demonstrates usage with crypto feature:
-//   sig-net = { version = "0.5", features = ["crypto"] }
+//   sig-net = { version = "0.6", features = ["crypto"] }
 //==============================================================================
 
 use sig_net::*;
