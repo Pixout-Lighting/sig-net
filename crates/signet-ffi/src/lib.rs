@@ -247,7 +247,7 @@ pub unsafe extern "C" fn signet_tuid_from_hex(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn signet_generate_ephemeral_tuid(
+pub unsafe extern "C" fn signet_generate_dynamic_tuid(
     mfg_code: u16,
     tuid_output: *mut u8,
 ) -> signet_result {
@@ -255,7 +255,7 @@ pub unsafe extern "C" fn signet_generate_ephemeral_tuid(
         return SIGNET_ERROR_INVALID_ARG;
     }
     let out = std::slice::from_raw_parts_mut(tuid_output, TUID_LENGTH);
-    match sig_net::crypto::generate_ephemeral_tuid(mfg_code) {
+    match sig_net::crypto::generate_dynamic_tuid(mfg_code) {
         Ok(arr) => { out.copy_from_slice(&arr); SIGNET_SUCCESS }
         Err(e) => map_error(e),
     }

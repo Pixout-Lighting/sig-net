@@ -116,7 +116,7 @@ pub fn build_node_uri_string(
     Ok(bytes.len())
 }
 
-/// /sig-net/v1/<scope>/node_beacon/{TUID_UPPER}
+/// /sig-net/v1/<scope>/node_beacon/{TUID_UPPER}/0
 pub fn build_node_beacon_uri_string(
     tuid: &[u8; TUID_LENGTH],
     scope: &str,
@@ -126,7 +126,7 @@ pub fn build_node_beacon_uri_string(
     let hex_str = core::str::from_utf8(&hex)
         .map_err(|_| SigNetError::Encode)?;
     let s = format!(
-        "/{}/{}/{}/node_beacon/{}",
+        "/{}/{}/{}/node_beacon/{}/0",
         SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, hex_str
     );
     let bytes = s.as_bytes();
@@ -137,7 +137,7 @@ pub fn build_node_beacon_uri_string(
     Ok(bytes.len())
 }
 
-/// /sig-net/v1/<scope>/node_lost/{TUID_UPPER}
+/// /sig-net/v1/<scope>/node_lost/{TUID_UPPER}/0
 pub fn build_node_lost_uri_string(
     tuid: &[u8; TUID_LENGTH],
     scope: &str,
@@ -147,7 +147,7 @@ pub fn build_node_lost_uri_string(
     let hex_str = core::str::from_utf8(&hex)
         .map_err(|_| SigNetError::Encode)?;
     let s = format!(
-        "/{}/{}/{}/node_lost/{}",
+        "/{}/{}/{}/node_lost/{}/0",
         SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, hex_str
     );
     let bytes = s.as_bytes();

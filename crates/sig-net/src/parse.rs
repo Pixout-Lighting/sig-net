@@ -280,9 +280,9 @@ pub fn parse_tid_timecode(tlv: &TLVBlock) -> Result<(u8, u8, u8, u8, u8)> {
     Ok((tlv.value[0], tlv.value[1], tlv.value[2], tlv.value[3], tlv.value[4]))
 }
 
-/// Parse TID_PATCH (0x0203, Length=7) → (universe, command, multicast_ip)
-pub fn parse_tid_patch(tlv: &TLVBlock) -> Result<(u16, u8, [u8; 4])> {
-    if tlv.type_id != TID_PATCH {
+/// Parse TID_UNIVERSE (0x0203, Length=7) → (universe, command, multicast_ip)
+pub fn parse_tid_universe(tlv: &TLVBlock) -> Result<(u16, u8, [u8; 4])> {
+    if tlv.type_id != TID_UNIVERSE {
         return Err(SigNetError::InvalidArgument);
     }
     if tlv.value.len() != 7 {

@@ -180,8 +180,8 @@ fn parse_hex_bytes_with_prefix() {
 }
 
 #[test]
-fn ephemeral_tuid_generation() {
-    let tuid = sig_net::crypto::generate_ephemeral_tuid(0x534C).unwrap();
+fn dynamic_tuid_generation() {
+    let tuid = sig_net::crypto::generate_dynamic_tuid(0x534C).unwrap();
     assert_eq!(tuid[0], 0x53);
     assert_eq!(tuid[1], 0x4C);
     assert!(tuid[2] >= 0x80);
@@ -192,6 +192,30 @@ fn generate_random_k0() {
     let mut k0 = [0u8; K0_KEY_LENGTH];
     sig_net::crypto::generate_random_k0(&mut k0).unwrap();
     assert_ne!(k0, [0u8; K0_KEY_LENGTH]);
+}
+
+#[test]
+fn export_guest_keys_roundtrip() {
+    let mut k0 = [0u8; K0_KEY_LENGTH];
+    sig_net::crypto::generate_random_k0(&mut k0).unwrap();
+
+    let keys = sig_net::crypto::export_guest_keys(&k0).unwrap();
+
+    let mut km_global = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_manager_global_key(&k0, &mut km_global).unwrap();
+    assert_eq!(keys.km_global, km_global);
+
+    let mut ks = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_sender_key(&k0, &mut ks).unwrap();
+    assert_eq!(keys.ks, ks);
+
+    let mut kc = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_citizen_key(&k0, &mut kc).unwrap();
+    assert_eq!(keys.kc, kc);
+
+    assert_ne!(keys.km_global, keys.ks);
+    assert_ne!(keys.km_global, keys.kc);
+    assert_ne!(keys.ks, keys.kc);
 }
 
 #[test]
@@ -511,10 +535,10 @@ fn test_encode_tid_timecode() {
 }
 
 #[test]
-fn test_encode_tid_patch_join() {
+fn test_encode_tid_universe_join() {
     let mut buf = PacketBuffer::new();
-    tlv::encode_tid_patch(&mut buf, 42, 0x01, &[0, 0, 0, 0]).unwrap();
-    assert_eq!(buf.as_slice()[0..2], TID_PATCH.to_be_bytes());
+    tlv::encode_tid_universe(&mut buf, 42, 0x01, &[0, 0, 0, 0]).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_UNIVERSE.to_be_bytes());
     // Length = 7
     assert_eq!(u16::from_be_bytes([buf.as_slice()[2], buf.as_slice()[3]]), 7);
     // Universe=42 (u16), command=0x01, IP=[0,0,0,0]
@@ -525,16 +549,16 @@ fn test_encode_tid_patch_join() {
 }
 
 #[test]
-fn test_encode_tid_patch_leave() {
+fn test_encode_tid_universe_leave() {
     let mut buf = PacketBuffer::new();
-    tlv::encode_tid_patch(&mut buf, 99, 0x02, &[239, 254, 0, 5]).unwrap();
-    assert_eq!(buf.as_slice()[0..2], TID_PATCH.to_be_bytes());
+    tlv::encode_tid_universe(&mut buf, 99, 0x02, &[239, 254, 0, 5]).unwrap();
+    assert_eq!(buf.as_slice()[0..2], TID_UNIVERSE.to_be_bytes());
     assert_eq!(buf.as_slice()[6], 0x02);  // Leave
     assert_eq!(buf.as_slice()[7..11], [239, 254, 0, 5]);
 
     // Parse roundtrip
-    let tlv = TLVBlock { type_id: TID_PATCH, value: &buf.as_slice()[4..11] };
-    let (univ, cmd, ip) = sig_net::parse::parse_tid_patch(&tlv).unwrap();
+    let tlv = TLVBlock { type_id: TID_UNIVERSE, value: &buf.as_slice()[4..11] };
+    let (univ, cmd, ip) = sig_net::parse::parse_tid_universe(&tlv).unwrap();
     assert_eq!(univ, 99);
     assert_eq!(cmd, 0x02);
     assert_eq!(ip, [239, 254, 0, 5]);

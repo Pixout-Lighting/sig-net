@@ -52,7 +52,7 @@ pub fn tuid_from_hex_string(hex_string: &[u8]) -> Result<[u8; TUID_LENGTH]> {
     TUID::from_hex(hex_string).map(|t| t.0)
 }
 
-pub fn generate_ephemeral_tuid(mfg_code: u16) -> Result<[u8; TUID_LENGTH]> {
+pub fn generate_dynamic_tuid(mfg_code: u16) -> Result<[u8; TUID_LENGTH]> {
     let mut random_bytes = [0u8; 4];
     getrandom::getrandom(&mut random_bytes).map_err(|_| SigNetError::Crypto)?;
     let device_id = (random_bytes[0] as u32) << 24
@@ -207,6 +207,27 @@ pub fn generate_random_passphrase(buf: &mut [u8; 11]) -> Result<()> {
 
 pub fn generate_random_k0(k0_output: &mut [u8; K0_KEY_LENGTH]) -> Result<()> {
     getrandom::getrandom(k0_output).map_err(|_| SigNetError::Crypto)
+}
+
+/// Export guest keys (Km_global, Ks, Kc) from K0.
+/// Guest Managers possess only these global keys, not K0 or Km_local,
+/// enforcing a cryptographically restricted Read-Only administrative state.
+pub struct GuestKeys {
+    pub km_global: [u8; DERIVED_KEY_LENGTH],
+    pub ks: [u8; DERIVED_KEY_LENGTH],
+    pub kc: [u8; DERIVED_KEY_LENGTH],
+}
+
+pub fn export_guest_keys(k0: &[u8; K0_KEY_LENGTH]) -> Result<GuestKeys> {
+    let mut keys = GuestKeys {
+        km_global: [0u8; DERIVED_KEY_LENGTH],
+        ks: [0u8; DERIVED_KEY_LENGTH],
+        kc: [0u8; DERIVED_KEY_LENGTH],
+    };
+    derive_manager_global_key(k0, &mut keys.km_global)?;
+    derive_sender_key(k0, &mut keys.ks)?;
+    derive_citizen_key(k0, &mut keys.kc)?;
+    Ok(keys)
 }
 
 pub fn build_hmac_input(

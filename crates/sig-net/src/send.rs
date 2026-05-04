@@ -278,7 +278,7 @@ pub fn build_preview_packet(
 }
 
 /// Build beacon packet (§10.2.1). Security-Mode = 0xFF (unprovisioned), HMAC = zeros.
-/// URI: /sig-net/v1/local/node_beacon/{TUID} → <mult_node_beacon> = 239.254.255.255
+/// URI: /sig-net/v1/local/node_beacon/{TUID}/0 → <mult_node_beacon> = 239.254.255.255
 pub fn build_beacon_packet(
     buffer: &mut PacketBuffer,
     tuid: &[u8; TUID_LENGTH],
@@ -294,7 +294,7 @@ pub fn build_beacon_packet(
     let hex = TUID(*tuid).to_hex_upper();
     let hex_str = core::str::from_utf8(&hex).map_err(|_| SigNetError::Encode)?;
     let segments = [
-        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, "local", "node_beacon", hex_str,
+        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, "local", "node_beacon", hex_str, "0",
     ];
     write_uri_path_segments(buffer, &segments)?;
 
@@ -325,7 +325,7 @@ pub fn build_beacon_packet(
 }
 
 /// Build node_lost packet (§10.2.6).
-/// URI: /sig-net/v1/<scope>/node_lost/{TUID} → <mult_node_lost> = 239.254.255.254
+/// URI: /sig-net/v1/<scope>/node_lost/{TUID}/0 → <mult_node_lost> = 239.254.255.254
 pub fn build_node_lost_packet(
     buffer: &mut PacketBuffer,
     tuid: &[u8; TUID_LENGTH],
@@ -347,7 +347,7 @@ pub fn build_node_lost_packet(
     let hex = TUID(*tuid).to_hex_upper();
     let hex_str = core::str::from_utf8(&hex).map_err(|_| SigNetError::Encode)?;
     let segments = [
-        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, "node_lost", hex_str,
+        SIGNET_URI_PREFIX, SIGNET_URI_VERSION, scope, "node_lost", hex_str, "0",
     ];
     write_uri_path_segments(buffer, &segments)?;
 

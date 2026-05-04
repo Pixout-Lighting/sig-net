@@ -97,12 +97,12 @@ int main() {
     printf("TUID hex round-trip:          PASS\n");
 
     //--------------------------------------------------------------------------
-    // 7. Generate ephemeral TUID
+    // 7. Generate dynamic TUID
     //--------------------------------------------------------------------------
     uint8_t ep_tuid[6];
-    ret = signet_generate_ephemeral_tuid(0x534C, ep_tuid);
+    ret = signet_generate_dynamic_tuid(0x534C, ep_tuid);
     assert(ret == 0);
-    print_hex("Ephemeral TUID:", ep_tuid, 6);
+    print_hex("Dynamic TUID:", ep_tuid, 6);
 
     //--------------------------------------------------------------------------
     // 8. Calculate multicast address

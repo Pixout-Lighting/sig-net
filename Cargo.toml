@@ -6,8 +6,8 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/Pixout-Lighting/sig-net"
-authors = ["Wayne Howell <wayne@singularity.uk>"]
+authors = ["Wayne Howell <wayne@singularity.uk>", "Evgenii Troinov <troinof@gmail.com>"]

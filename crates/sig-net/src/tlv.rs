@@ -119,14 +119,14 @@ pub fn encode_tid_timecode(
     buffer.write_byte(tc_type)
 }
 
-/// TID_PATCH: 7 bytes = [universe(u16)][command(u8)][multicast_ip(4)]
-pub fn encode_tid_patch(
+/// TID_UNIVERSE: 7 bytes = [universe(u16)][command(u8)][multicast_ip(4)]
+pub fn encode_tid_universe(
     buffer: &mut PacketBuffer,
     universe: u16,
     command: u8,
     multicast_ip: &[u8; 4],
 ) -> Result<()> {
-    buffer.write_u16(TID_PATCH)?;
+    buffer.write_u16(TID_UNIVERSE)?;
     buffer.write_u16(7)?;
     buffer.write_u16(universe)?;
     buffer.write_byte(command)?;

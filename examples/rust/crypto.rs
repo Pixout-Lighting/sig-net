@@ -98,11 +98,11 @@ fn main() {
     println!("TUID hex round-trip: OK");
 
     //--------------------------------------------------------------------------
-    // 7. Ephemeral TUID generation
+    // 7. Dynamic TUID generation
     //--------------------------------------------------------------------------
-    let ep_tuid = crypto::generate_ephemeral_tuid(0x534C).unwrap();
+    let ep_tuid = crypto::generate_dynamic_tuid(0x534C).unwrap();
     assert!(ep_tuid[2] >= 0x80);
-    println!("Ephemeral TUID: {:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
+    println!("Dynamic TUID: {:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
         ep_tuid[0], ep_tuid[1], ep_tuid[2], ep_tuid[3], ep_tuid[4], ep_tuid[5]);
 
     //--------------------------------------------------------------------------

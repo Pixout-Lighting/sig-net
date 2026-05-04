@@ -23,6 +23,7 @@ pub const SIGNET_OPTION_SESSION_ID: u16 = 2172;
 pub const SIGNET_OPTION_SEQ_NUM: u16 = 2204;
 pub const SIGNET_OPTION_HMAC: u16 = 2236;
 pub const SECURITY_MODE_HMAC_SHA256: u8 = 0x00;
+pub const SECURITY_MODE_OPEN_MODE: u8 = 0x01;
 pub const SECURITY_MODE_UNPROVISIONED: u8 = 0xFF;
 
 pub const TID_POLL: u16 = 0x0001;
@@ -36,7 +37,7 @@ pub const TID_PRIORITY: u16 = 0x0102;
 pub const TID_PREVIEW: u16 = 0x0103;
 pub const TID_SYNC: u16 = 0x0201;
 pub const TID_TIMECODE: u16 = 0x0202;
-pub const TID_PATCH: u16 = 0x0203;
+pub const TID_UNIVERSE: u16 = 0x0203;
 pub const TID_RDM_COMMAND: u16 = 0x0301;
 pub const TID_RDM_RESPONSE: u16 = 0x0302;
 pub const TID_RDM_TOD_CONTROL: u16 = 0x0303;
@@ -120,7 +121,7 @@ pub const BEACON_MIN_INTERVAL_SECS: u32 = 5;
 pub const BEACON_TIMEOUT_SECS: u32 = 30;
 pub const NODE_PROCESSING_MAX_MS: u32 = 500;
 pub const ENDPOINT_SPACING_DELAY_MS: u32 = 1;
-pub const PATCH_ANNOUNCE_INTERVAL_SECS: u32 = 5;
+pub const UNIVERSE_ANNOUNCE_INTERVAL_SECS: u32 = 5;
 pub const STATUS_PUBLISH_RATE_SECS: u32 = 1;
 
 pub const K0_KEY_LENGTH: usize = 32;
@@ -185,3 +186,5 @@ pub const PASSPHRASE_GEN_SYMBOLS: &[u8] = b"!@#$%^&*-_=+";
 pub use TID_RT_OFFBOARD as TID_RT_UNPROVISION;
 #[deprecated(since = "0.18.0", note = "renamed to TID_RT_MULT_OVERRIDE per spec §11.6.6")]
 pub use TID_RT_MULT_OVERRIDE as TID_RT_MULT;
+#[deprecated(since = "0.19.0", note = "renamed to TID_UNIVERSE per spec")]
+pub use TID_UNIVERSE as TID_PATCH;

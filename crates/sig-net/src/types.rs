@@ -298,9 +298,9 @@ impl TUID {
         out
     }
 
-    /// Lowercase hex для отображения на экране (§7.4).
+    /// Uppercase hex для отображения на экране (§6.6).
     pub fn to_hex_display(&self) -> [u8; TUID_HEX_LENGTH] {
-        const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
+        const HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
         let mut out = [0u8; TUID_HEX_LENGTH];
         for i in 0..TUID_LENGTH {
             out[i * 2] = HEX_CHARS[(self.0[i] >> 4) as usize];
