@@ -40,6 +40,16 @@ fn write_uri_path_segments(buffer: &mut PacketBuffer, segments: &[&str]) -> Resu
     Ok(())
 }
 
+/// §8.4 / RFC 7252 §3: the 0xFF payload marker shall be omitted when the
+/// Application Payload is empty.
+fn write_packet_payload(buffer: &mut PacketBuffer, payload: &[u8]) -> Result<()> {
+    if payload.is_empty() {
+        return Ok(());
+    }
+    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
+    buffer.write_bytes(payload)
+}
+
 pub fn build_dmx_packet(
     buffer: &mut PacketBuffer,
     universe: u16,
@@ -78,16 +88,18 @@ pub fn build_dmx_packet(
     let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), sender_key)?;
     coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(payload_buf.as_slice())
+    write_packet_payload(buffer, payload_buf.as_slice())
 }
 
+/// Build On-Boot Notification packet (§10.2.5).
+///
+/// Note: per §10.2.5 the payload contains exactly 6 normative TLVs in fixed
+/// order — firmware version, model name, etc. are queried separately
+/// (TID_QUERY_FULL).
 pub fn build_announce_packet(
     buffer: &mut PacketBuffer,
     tuid: &[u8; TUID_LENGTH],
     soem_code: SoemCode,
-    firmware_version_id: u32,
-    firmware_version_string: &str,
     protocol_version: u8,
     role_capability_bits: u8,
     endpoint_count: u16,
@@ -120,10 +132,7 @@ pub fn build_announce_packet(
     // Build payload in a temp buffer for HMAC calculation
     let mut payload_buf = PacketBuffer::new();
     tlv::build_startup_announce_payload(
-        &mut payload_buf, tuid,
-        soem_code,
-        firmware_version_id,
-        firmware_version_string,
+        &mut payload_buf, tuid, soem_code,
         protocol_version, role_capability_bits, endpoint_count, change_count,
         0,  // mult_override_state: default
         None,  // otw_capability: not supported
@@ -137,8 +146,7 @@ pub fn build_announce_packet(
     let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), citizen_key)?;
     coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(payload_buf.as_slice())
+    write_packet_payload(buffer, payload_buf.as_slice())
 }
 
 pub fn build_poll_packet(
@@ -183,8 +191,7 @@ pub fn build_poll_packet(
     let hmac = compute_hmac_opt(&poll_uri, &options, payload_buf.as_slice(), manager_global_key)?;
     coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(payload_buf.as_slice())
+    write_packet_payload(buffer, payload_buf.as_slice())
 }
 
 /// Build timecode packet (§11.2.5).
@@ -228,8 +235,7 @@ pub fn build_timecode_packet(
     let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), sender_key)?;
     coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(payload_buf.as_slice())
+    write_packet_payload(buffer, payload_buf.as_slice())
 }
 
 /// Build preview packet (§11.2.3).
@@ -273,8 +279,7 @@ pub fn build_preview_packet(
     let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), sender_key)?;
     coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(payload_buf.as_slice())
+    write_packet_payload(buffer, payload_buf.as_slice())
 }
 
 /// Build beacon packet (§10.2.1). Security-Mode = 0xFF (unprovisioned), HMAC = zeros.
@@ -320,8 +325,7 @@ pub fn build_beacon_packet(
         tlv::encode_tid_rt_otw_capability(&mut payload_buf, port, protocols)?;
     }
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(payload_buf.as_slice())
+    write_packet_payload(buffer, payload_buf.as_slice())
 }
 
 /// Build node_lost packet (§10.2.6).
@@ -381,8 +385,7 @@ pub fn build_node_lost_packet(
     let hmac = compute_hmac_opt(uri_string, &options, payload_buf.as_slice(), citizen_key)?;
     coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(payload_buf.as_slice())
+    write_packet_payload(buffer, payload_buf.as_slice())
 }
 
 /// Build manager command packet (§11.3).
@@ -421,6 +424,5 @@ pub fn build_manager_command_packet(
     let hmac = compute_hmac_opt(uri_string, &options, tlv_payload, km_local)?;
     coap::encode_coap_option(buffer, SIGNET_OPTION_HMAC, SIGNET_OPTION_SEQ_NUM, &hmac)?;
 
-    buffer.write_byte(COAP_PAYLOAD_MARKER)?;
-    buffer.write_bytes(tlv_payload)
+    write_packet_payload(buffer, tlv_payload)
 }

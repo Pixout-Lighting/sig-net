@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] — Protocol spec V1.0 conformance
+
+### Breaking Changes
+
+- **`build_announce_packet` / `build_startup_announce_payload`** — `firmware_version_id` and `firmware_version_string` parameters removed. Per §10.2.5, the On-Boot Notification payload now contains exactly six normative TLVs (POLL_REPLY, PROTOCOL_VERSION, ROLE_CAPABILITY, ENDPOINT_COUNT, MULT_OVERRIDE, OTW_CAPABILITY); firmware version is queried separately via `TID_QUERY_FULL`. FFI `signet_build_announce_packet` signature updated accordingly.
+- **Multicast Folding™ modulus** — `MULTICAST_MAX_INDEX` changed from `100` to `109` per §9.2.3 (prime modulus prevents clustering on round-number universe layouts). `calculate_multicast_address(110)` now returns `.1` instead of `.10`; deployments with >100 universes will compute different multicast groups.
+- **Empty Application Payload** — CoAP payload marker (`0xFF`) is no longer emitted when the payload is empty, conforming to RFC 7252 §3 and §8.4.
+
+### Added
+
+- `validate_k0_entropy()` and `k0_shannon_entropy()` — §7.2.1 character-level Shannon entropy floor (≥3.0 bits/char) for auto-generated K0s. `generate_random_k0()` now retries (bounded) on entropy floor failures.
+- `TID_EP_PROTOCOL = 0x090B` — §11.7.11 endpoint protocol TID for gateway scenarios.
+- Regression tests: `multicast_folding_uses_prime_modulus_109`, `empty_payload_omits_coap_payload_marker`, `boot_announcement_tlv_order_matches_spec_10_2_5`, K0 Shannon entropy tests, `tid_ep_protocol_constant_present` (63 total).
+
+### Migration Guide
+
+1. Remove `firmware_version_id` / `firmware_version_string` arguments from `build_announce_packet` calls; if the firmware string is still needed, encode it in a separate QUERY_FULL response using `encode_tid_rt_firmware_version`.
+2. Review deployments with universes ≥101: multicast group assignments shift (mod-109 vs mod-100). Re-derive group membership on both senders and receivers before rolling the update.
+3. Application-level parsers that relied on a trailing `0xFF` for empty payloads must accept its absence.
+
+---
+
 ## [0.7.0] — Protocol spec v0.19
 
 ### Breaking Changes

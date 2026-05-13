@@ -205,8 +205,50 @@ pub fn generate_random_passphrase(buf: &mut [u8; 11]) -> Result<()> {
     Err(SigNetError::Crypto)
 }
 
+/// §7.2.1 Shannon-entropy floor for auto-generated K0s.
+/// A truly random 64-char hex string has expected entropy ~4.0 bits/char;
+/// a corrupt RNG returning all-zeros yields 0.0. The 3.0 threshold catches
+/// degenerate output without ever falsely rejecting healthy randomness.
+const K0_MIN_SHANNON_ENTROPY_BITS_PER_CHAR: f64 = 3.0;
+
+/// Compute the character-level Shannon entropy (bits/char) of a K0 expressed
+/// as 64 uppercase hex characters, per §7.2.1.
+pub fn k0_shannon_entropy(k0: &[u8; K0_KEY_LENGTH]) -> f64 {
+    let mut counts = [0u32; 16];
+    for &b in k0 {
+        counts[(b >> 4) as usize] += 1;
+        counts[(b & 0x0F) as usize] += 1;
+    }
+    let total = (K0_KEY_LENGTH * 2) as f64;
+    let mut h = 0.0_f64;
+    for &c in &counts {
+        if c > 0 {
+            let p = (c as f64) / total;
+            h -= p * p.log2();
+        }
+    }
+    h
+}
+
+/// Reject K0 material whose hex representation has Shannon entropy below the
+/// §7.2.1 floor. Intended for automatically generated K0s.
+pub fn validate_k0_entropy(k0: &[u8; K0_KEY_LENGTH]) -> Result<()> {
+    if k0_shannon_entropy(k0) < K0_MIN_SHANNON_ENTROPY_BITS_PER_CHAR {
+        return Err(SigNetError::Crypto);
+    }
+    Ok(())
+}
+
 pub fn generate_random_k0(k0_output: &mut [u8; K0_KEY_LENGTH]) -> Result<()> {
-    getrandom::getrandom(k0_output).map_err(|_| SigNetError::Crypto)
+    // §7.2.1: retry on the (vanishingly rare) case that the RNG produces a K0
+    // below the entropy floor — bounded so a broken RNG fails fast.
+    for _ in 0..8 {
+        getrandom::getrandom(k0_output).map_err(|_| SigNetError::Crypto)?;
+        if validate_k0_entropy(k0_output).is_ok() {
+            return Ok(());
+        }
+    }
+    Err(SigNetError::Crypto)
 }
 
 /// Export guest keys (Km_global, Ks, Kc) from K0.

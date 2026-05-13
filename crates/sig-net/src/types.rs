@@ -342,6 +342,6 @@ pub fn calculate_multicast_address(universe: u16) -> Result<[u8; 4]> {
     if !(MIN_UNIVERSE..=MAX_UNIVERSE).contains(&universe) {
         return Err(SigNetError::InvalidArgument);
     }
-    let index = ((universe - 1) % 100) + 1;
+    let index = ((universe - 1) % MULTICAST_MAX_INDEX as u16) + 1;
     Ok([MULTICAST_BASE_OCTET_0, MULTICAST_BASE_OCTET_1, MULTICAST_BASE_OCTET_2, index as u8])
 }

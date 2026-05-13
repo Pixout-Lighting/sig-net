@@ -75,16 +75,14 @@ fn main() {
         &mut announce_buf,
         &tuid.0,
         soem_code(0x534C, 0x0001),
-        0x00000001u32,
-        "Sig-Net Node v1.0",
-        0x01,
-        ROLE_CAP_SENDER,
-        1,      // endpoint_count
-        0,
-        1,
-        1,
+        0x01,               // protocol_version
+        ROLE_CAP_SENDER,    // role_capability
+        1,                  // endpoint_count
+        0,                  // change_count
+        1,                  // session_id
+        1,                  // seq_num
         &sender_key,
-        2,
+        2,                  // message_id
         "local",
     ).unwrap();
     println!("Announce packet: {} bytes", announce_buf.len());

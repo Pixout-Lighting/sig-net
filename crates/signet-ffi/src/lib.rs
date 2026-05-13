@@ -346,6 +346,8 @@ pub unsafe extern "C" fn signet_build_dmx_packet(
     }
 }
 
+/// Build On-Boot Notification packet (§10.2.5). Firmware version is intentionally
+/// not part of the boot announce — query it via TID_QUERY_FULL instead.
 #[no_mangle]
 pub unsafe extern "C" fn signet_build_announce_packet(
     out_buf: *mut u8,
@@ -353,8 +355,6 @@ pub unsafe extern "C" fn signet_build_announce_packet(
     out_len: *mut u32,
     tuid: *const u8,
     soem_code: u32,
-    firmware_version_id: u32,
-    firmware_version_string: *const c_char,
     protocol_version: u8,
     role_capability_bits: u8,
     endpoint_count: u16,
@@ -365,22 +365,16 @@ pub unsafe extern "C" fn signet_build_announce_packet(
     citizen_key_len: u32,
     message_id: u16,
 ) -> signet_result {
-    if out_buf.is_null() || out_len.is_null() || tuid.is_null()
-        || firmware_version_string.is_null() || citizen_key.is_null()
-    {
+    if out_buf.is_null() || out_len.is_null() || tuid.is_null() || citizen_key.is_null() {
         return SIGNET_ERROR_INVALID_ARG;
     }
     let tuid_arr = *(tuid as *const [u8; TUID_LENGTH]);
-    let fwstr = match CStr::from_ptr(firmware_version_string).to_str() {
-        Ok(s) => s,
-        Err(_) => return SIGNET_ERROR_INVALID_ARG,
-    };
     let key = std::slice::from_raw_parts(citizen_key, citizen_key_len as usize);
 
     let mut packet = PacketBuffer::new();
     match sig_net::send::build_announce_packet(
         &mut packet, &tuid_arr, soem_code,
-        firmware_version_id, fwstr, protocol_version, role_capability_bits,
+        protocol_version, role_capability_bits,
         endpoint_count, change_count, session_id, seq_num, key, message_id, "local",
     ) {
         Ok(()) => {

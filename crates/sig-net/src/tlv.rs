@@ -160,13 +160,15 @@ pub fn encode_tid_rt_reboot(buffer: &mut PacketBuffer, reboot_type: u8) -> Resul
     buffer.write_bytes(b"BOOT")
 }
 
-/// Build boot notification payload in canonical TLV order (§10.2.5).
+/// Build On-Boot Notification payload in canonical TLV order per §10.2.5.
+///
+/// SNACtest enforces the *exact* 6-TLV order below; FIRMWARE_VERSION is
+/// deliberately excluded (it belongs in a QUERY_FULL response, not the boot
+/// announce — strict V1.0 Managers reject extra TLVs in this packet).
 pub fn build_startup_announce_payload(
     buffer: &mut PacketBuffer,
     tuid: &[u8; TUID_LENGTH],
     soem_code: SoemCode,
-    firmware_version_id: u32,
-    firmware_version_string: &str,
     protocol_version: u8,
     role_capability_bits: u8,
     endpoint_count: u16,
@@ -176,18 +178,16 @@ pub fn build_startup_announce_payload(
 ) -> Result<()> {
     // 1. TID_POLL_REPLY
     encode_tid_poll_reply(buffer, tuid, soem_code, change_count)?;
-    // 2. TID_RT_FIRMWARE_VERSION
-    encode_tid_rt_firmware_version(buffer, firmware_version_id, firmware_version_string)?;
-    // 3. TID_RT_PROTOCOL_VERSION
+    // 2. TID_RT_PROTOCOL_VERSION
     encode_tid_rt_protocol_version(buffer, protocol_version)?;
-    // 4. TID_RT_ROLE_CAPABILITY
+    // 3. TID_RT_ROLE_CAPABILITY
     encode_tid_rt_role_capability(buffer, role_capability_bits)?;
-    // 5. TID_RT_ENDPOINT_COUNT
+    // 4. TID_RT_ENDPOINT_COUNT
     let ec = endpoint_count.to_be_bytes();
     encode_tlv(buffer, &TLVBlock { type_id: TID_RT_ENDPOINT_COUNT, value: &ec })?;
-    // 6. TID_RT_MULT_OVERRIDE
+    // 5. TID_RT_MULT_OVERRIDE
     encode_tid_rt_mult_override(buffer, mult_override_state)?;
-    // 7. TID_RT_OTW_CAPABILITY (only if supported)
+    // 6. TID_RT_OTW_CAPABILITY (only if supported)
     if let Some((port, protocols)) = otw_capability {
         encode_tid_rt_otw_capability(buffer, port, protocols)?;
     }

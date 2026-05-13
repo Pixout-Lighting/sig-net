@@ -146,17 +146,20 @@ fn increment_sequence_rollover() {
 
 #[test]
 fn multicast_address_calculation() {
+    // §9.2.3 Multicast Folding™: Index = ((Universe - 1) % 109) + 1
     let octets = calculate_multicast_address(1).unwrap();
     assert_eq!(octets, [239, 254, 0, 1]);
 
-    let octets = calculate_multicast_address(100).unwrap();
-    assert_eq!(octets, [239, 254, 0, 100]);
+    let octets = calculate_multicast_address(109).unwrap();
+    assert_eq!(octets, [239, 254, 0, 109]);
 
-    let octets = calculate_multicast_address(101).unwrap();
+    // Universe 110 wraps back to index 1
+    let octets = calculate_multicast_address(110).unwrap();
     assert_eq!(octets, [239, 254, 0, 1]);
 
+    // Universe 517 → ((517-1) % 109) + 1 = (516 % 109) + 1 = 80 + 1 = 81
     let octets = calculate_multicast_address(517).unwrap();
-    assert_eq!(octets, [239, 254, 0, 17]);
+    assert_eq!(octets, [239, 254, 0, 81]);
 }
 
 #[test]
@@ -776,4 +779,140 @@ fn test_session_id_overflow_error() {
     let err = SigNetError::SessionIdOverflow;
     let msg = format!("{}", err);
     assert!(msg.contains("session"), "SessionIdOverflow display should mention session");
+}
+
+// ---------------------------------------------------------------------------
+// V1.0 compliance regression tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn multicast_folding_uses_prime_modulus_109() {
+    // §9.2.3: prime modulus prevents clustering on round-number universe layouts.
+    assert_eq!(MULTICAST_MAX_INDEX, 109);
+    // Universe 109 maps to .109 (boundary).
+    assert_eq!(calculate_multicast_address(109).unwrap(), [239, 254, 0, 109]);
+    // Universe 110 wraps back to .1.
+    assert_eq!(calculate_multicast_address(110).unwrap(), [239, 254, 0, 1]);
+    // Universe 100 — important regression: mod-100 implementation mapped this
+    // to .100 with the *wrong* clustering behavior. mod-109 gives .100 here
+    // *and* keeps 109 distinct.
+    assert_eq!(calculate_multicast_address(100).unwrap(), [239, 254, 0, 100]);
+    // Smoke-check distinctness for the 109-wide window.
+    let mut octets = std::collections::HashSet::new();
+    for u in 1..=109 {
+        octets.insert(calculate_multicast_address(u).unwrap()[3]);
+    }
+    assert_eq!(octets.len(), 109, "109 consecutive universes must map to 109 distinct groups");
+}
+
+#[test]
+fn empty_payload_omits_coap_payload_marker() {
+    // §8.4 / RFC 7252 §3: 0xFF must not appear before an empty Application Payload.
+    // Use build_manager_command_packet with an empty TLV payload — easiest empty
+    // case since DMX/Preview/Timecode all require non-empty payloads.
+    let mut k0 = [0u8; K0_KEY_LENGTH];
+    sig_net::crypto::derive_k0_from_passphrase(b"Ge2p$E$4*A", &mut k0).unwrap();
+    let target_tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x02];
+    let mut km_local = [0u8; DERIVED_KEY_LENGTH];
+    sig_net::crypto::derive_manager_local_key(&k0, &target_tuid, &mut km_local).unwrap();
+
+    let mgr_tuid = [0x53, 0x4C, 0x00, 0x00, 0x00, 0x01];
+    let empty_payload: &[u8] = &[];
+    let mut buf = PacketBuffer::new();
+
+    send::build_manager_command_packet(
+        &mut buf, &target_tuid, 0, empty_payload,
+        &mgr_tuid, 0x0000, 1, 1, &km_local, 42, "local",
+    ).unwrap();
+
+    let pkt = buf.as_slice();
+    assert!(
+        !pkt.contains(&COAP_PAYLOAD_MARKER),
+        "packet with empty payload must not contain 0xFF marker, got {:02X?}",
+        pkt,
+    );
+}
+
+#[test]
+fn boot_announcement_tlv_order_matches_spec_10_2_5() {
+    // §10.2.5 canonical TLV order:
+    //   1) POLL_REPLY, 2) PROTOCOL_VERSION, 3) ROLE_CAPABILITY,
+    //   4) ENDPOINT_COUNT, 5) MULT_OVERRIDE, 6) OTW_CAPABILITY (optional).
+    // FIRMWARE_VERSION must NOT appear.
+    let mut buf = PacketBuffer::new();
+    sig_net::tlv::build_startup_announce_payload(
+        &mut buf,
+        &[0x53, 0x4C, 0x00, 0x00, 0x00, 0x01],
+        soem_code(0x534C, 0x0001),
+        0x01,           // protocol_version
+        ROLE_CAP_NODE,  // role_capability
+        4,              // endpoint_count
+        7,              // change_count
+        0,              // mult_override_state
+        Some((443, 0x03)),
+    ).unwrap();
+
+    let mut reader = sig_net::parse::PacketReader::new(buf.as_slice(), buf.len());
+    let mut seen_tids = Vec::new();
+    while reader.remaining() > 0 {
+        let tlv = reader.parse_tlv_block().unwrap();
+        seen_tids.push(tlv.type_id);
+    }
+
+    assert_eq!(
+        seen_tids,
+        vec![
+            TID_POLL_REPLY,
+            TID_RT_PROTOCOL_VERSION,
+            TID_RT_ROLE_CAPABILITY,
+            TID_RT_ENDPOINT_COUNT,
+            TID_RT_MULT_OVERRIDE,
+            TID_RT_OTW_CAPABILITY,
+        ],
+        "boot announce must follow §10.2.5 order without FIRMWARE_VERSION",
+    );
+    assert!(
+        !seen_tids.contains(&TID_RT_FIRMWARE_VERSION),
+        "TID_RT_FIRMWARE_VERSION belongs in QUERY_FULL replies, not the boot announce",
+    );
+}
+
+#[test]
+fn k0_shannon_entropy_rejects_all_zero() {
+    // §7.2.1: K0 = 64 hex zeros has entropy 0 — must reject.
+    let zero_k0 = [0u8; K0_KEY_LENGTH];
+    assert_eq!(sig_net::crypto::k0_shannon_entropy(&zero_k0), 0.0);
+    assert!(sig_net::crypto::validate_k0_entropy(&zero_k0).is_err());
+}
+
+#[test]
+fn k0_shannon_entropy_accepts_uniform_hex() {
+    // 32 bytes covering each hex nibble equally → entropy = log2(16) = 4.0.
+    let mut uniform = [0u8; K0_KEY_LENGTH];
+    for i in 0..16 {
+        uniform[i * 2] = ((i as u8) << 4) | (i as u8);  // produces every nibble twice
+        uniform[i * 2 + 1] = ((((i + 8) & 0x0F) as u8) << 4) | (((i + 8) & 0x0F) as u8);
+    }
+    let h = sig_net::crypto::k0_shannon_entropy(&uniform);
+    assert!(h >= 3.0, "uniform K0 entropy {h} must clear 3.0 floor");
+    assert!(sig_net::crypto::validate_k0_entropy(&uniform).is_ok());
+}
+
+#[test]
+fn k0_shannon_entropy_rejects_two_symbol_alternation() {
+    // Alternating 0x01 / 0x10 keeps only 2 hex symbols (0 and 1) → entropy 1.0,
+    // below the 3.0 floor.
+    let mut low = [0u8; K0_KEY_LENGTH];
+    for (i, b) in low.iter_mut().enumerate() {
+        *b = if i % 2 == 0 { 0x01 } else { 0x10 };
+    }
+    let h = sig_net::crypto::k0_shannon_entropy(&low);
+    assert!(h < 3.0, "two-symbol pattern entropy {h} must fail the floor");
+    assert!(sig_net::crypto::validate_k0_entropy(&low).is_err());
+}
+
+#[test]
+fn tid_ep_protocol_constant_present() {
+    // §11.7.11 — TID_EP_PROTOCOL must be defined at 0x090B.
+    assert_eq!(TID_EP_PROTOCOL, 0x090B);
 }

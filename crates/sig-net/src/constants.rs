@@ -79,6 +79,8 @@ pub const TID_EP_STATUS: u16 = 0x0907;
 pub const TID_EP_FAILOVER: u16 = 0x0908;
 pub const TID_EP_DMX_TIMING: u16 = 0x0909;
 pub const TID_EP_REFRESH_CAPABILITY: u16 = 0x090A;
+/// §11.7.11 — endpoint protocol (sACN / Art-Net / Sig-Net) for gateway scenarios.
+pub const TID_EP_PROTOCOL: u16 = 0x090B;
 pub const TID_DG_SECURITY_EVENT: u16 = 0xFF01;
 pub const TID_DG_MESSAGE: u16 = 0xFF02;
 pub const TID_DG_LEVEL_FOLDBACK: u16 = 0xFF03;
@@ -93,7 +95,10 @@ pub const MULTICAST_BASE_OCTET_0: u8 = 239;
 pub const MULTICAST_BASE_OCTET_1: u8 = 254;
 pub const MULTICAST_BASE_OCTET_2: u8 = 0;
 pub const MULTICAST_MIN_INDEX: u8 = 1;
-pub const MULTICAST_MAX_INDEX: u8 = 100;
+// Prime modulus from §9.2.3 — prevents clustering when operators patch universes
+// in repeating patterns (e.g., powers of 10). Multicast Folding™:
+//   Index = ((Universe - 1) % 109) + 1
+pub const MULTICAST_MAX_INDEX: u8 = 109;
 pub const MULTICAST_TTL: u8 = 32;
 
 pub const MAX_DMX_SLOTS: u16 = 512;
