@@ -37,7 +37,7 @@ This is a **pure Rust** implementation of the Sig-Net Protocol Framework specifi
 
 ```toml
 [dependencies]
-sig-net = "0.6"
+sig-net = "0.8"
 ```
 
 **Build and send a DMX level packet:**
